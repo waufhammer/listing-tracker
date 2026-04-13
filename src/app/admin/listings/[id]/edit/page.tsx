@@ -1,0 +1,405 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter, useParams } from "next/navigation";
+import Link from "next/link";
+import { supabase } from "@/lib/supabase";
+
+const STATUS_OPTIONS = ["Prepping", "Active", "Pending", "Sold"];
+
+function isValidSlug(slug: string): boolean {
+  return /^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug);
+}
+
+export default function EditListingPage() {
+  const router = useRouter();
+  const params = useParams();
+  const id = params.id as string;
+
+  const [clientName, setClientName] = useState("");
+  const [propertyAddress, setPropertyAddress] = useState("");
+  const [slug, setSlug] = useState("");
+  const [listDate, setListDate] = useState("");
+  const [status, setStatus] = useState("Prepping");
+  const [zillowVisible, setZillowVisible] = useState(false);
+  const [redfinVisible, setRedfinVisible] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    async function fetchListing() {
+      const { data, error: fetchError } = await supabase
+        .from("listings")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (fetchError || !data) {
+        setError("Listing not found.");
+        setLoading(false);
+        return;
+      }
+
+      setClientName(data.client_name ?? "");
+      setPropertyAddress(data.property_address ?? "");
+      setSlug(data.slug ?? "");
+      setListDate(data.list_date ?? "");
+      setStatus(data.status ?? "Prepping");
+      setZillowVisible(data.zillow_visible ?? false);
+      setRedfinVisible(data.redfin_visible ?? false);
+      setPhotoUrl(data.photo_url ?? null);
+      setLoading(false);
+    }
+
+    fetchListing();
+  }, [id]);
+
+  const clientUrl = `listings.aufhammerhomes.com/${slug}`;
+
+  function handleCopyUrl() {
+    navigator.clipboard.writeText(`https://${clientUrl}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  function handleSlugChange(value: string) {
+    setSlug(value.toLowerCase().replace(/[^a-z0-9-]/g, ""));
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+
+    if (!clientName.trim() || !propertyAddress.trim() || !slug.trim()) {
+      setError("Client name, address, and slug are required.");
+      return;
+    }
+
+    if (!isValidSlug(slug)) {
+      setError(
+        "Slug must be lowercase letters, numbers, and hyphens only (e.g. 'smith' or 'jones-family')."
+      );
+      return;
+    }
+
+    setSubmitting(true);
+
+    // Check slug uniqueness (exclude current listing)
+    const { data: existing } = await supabase
+      .from("listings")
+      .select("id")
+      .eq("slug", slug)
+      .neq("id", id)
+      .maybeSingle();
+
+    if (existing) {
+      setError("That slug is already in use. Please choose a different one.");
+      setSubmitting(false);
+      return;
+    }
+
+    // Upload new photo if provided
+    let newPhotoUrl = photoUrl;
+    if (photoFile) {
+      const fileExt = photoFile.name.split(".").pop();
+      const filePath = `${slug}-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("property-photos")
+        .upload(filePath, photoFile);
+
+      if (uploadError) {
+        setError(`Photo upload failed: ${uploadError.message}`);
+        setSubmitting(false);
+        return;
+      }
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("property-photos").getPublicUrl(filePath);
+
+      newPhotoUrl = publicUrl;
+    }
+
+    const { error: updateError } = await supabase
+      .from("listings")
+      .update({
+        client_name: clientName.trim(),
+        property_address: propertyAddress.trim(),
+        slug,
+        list_date: listDate || null,
+        status,
+        zillow_visible: zillowVisible,
+        redfin_visible: redfinVisible,
+        photo_url: newPhotoUrl,
+      })
+      .eq("id", id);
+
+    if (updateError) {
+      setError(`Failed to update listing: ${updateError.message}`);
+      setSubmitting(false);
+      return;
+    }
+
+    router.push("/admin");
+  }
+
+  async function handleDelete() {
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this listing? This action cannot be undone."
+    );
+    if (!confirmed) return;
+
+    setDeleting(true);
+
+    const { error: deleteError } = await supabase
+      .from("listings")
+      .delete()
+      .eq("id", id);
+
+    if (deleteError) {
+      setError(`Failed to delete listing: ${deleteError.message}`);
+      setDeleting(false);
+      return;
+    }
+
+    router.push("/admin");
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-gray-500">Loading...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="mb-6">
+          <Link
+            href="/admin"
+            className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            &larr; Back to Listings
+          </Link>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-8">
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            Edit Listing
+          </h1>
+
+          {/* Live client URL */}
+          {slug && (
+            <div className="mb-6 flex items-center gap-2 rounded-lg bg-gray-50 border border-gray-200 px-4 py-3">
+              <span className="text-sm text-gray-600 truncate">
+                {clientUrl}
+              </span>
+              <button
+                type="button"
+                onClick={handleCopyUrl}
+                className="ml-auto shrink-0 rounded-md bg-white border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                {copied ? "Copied!" : "Copy"}
+              </button>
+            </div>
+          )}
+
+          {error && (
+            <div className="mb-6 rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Client Name */}
+            <div>
+              <label
+                htmlFor="client_name"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Client Name
+              </label>
+              <input
+                id="client_name"
+                type="text"
+                value={clientName}
+                onChange={(e) => setClientName(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+              />
+            </div>
+
+            {/* Property Address */}
+            <div>
+              <label
+                htmlFor="property_address"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Property Address
+              </label>
+              <input
+                id="property_address"
+                type="text"
+                value={propertyAddress}
+                onChange={(e) => setPropertyAddress(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+              />
+            </div>
+
+            {/* Slug */}
+            <div>
+              <label
+                htmlFor="slug"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                URL Slug
+              </label>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-400">
+                  listings.aufhammerhomes.com/
+                </span>
+                <input
+                  id="slug"
+                  type="text"
+                  value={slug}
+                  onChange={(e) => handleSlugChange(e.target.value)}
+                  className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
+              </div>
+              <p className="mt-1 text-xs text-gray-400">
+                Lowercase letters, numbers, and hyphens only.
+              </p>
+            </div>
+
+            {/* List Date */}
+            <div>
+              <label
+                htmlFor="list_date"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                List Date
+              </label>
+              <input
+                id="list_date"
+                type="date"
+                value={listDate}
+                onChange={(e) => setListDate(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+              />
+            </div>
+
+            {/* Status */}
+            <div>
+              <label
+                htmlFor="status"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Status
+              </label>
+              <select
+                id="status"
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+              >
+                {STATUS_OPTIONS.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Visibility checkboxes */}
+            <div className="flex flex-col sm:flex-row gap-4">
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={zillowVisible}
+                  onChange={(e) => setZillowVisible(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                />
+                Zillow Visible
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={redfinVisible}
+                  onChange={(e) => setRedfinVisible(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                />
+                Redfin Visible
+              </label>
+            </div>
+
+            {/* Photo Upload */}
+            <div>
+              <label
+                htmlFor="photo"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Property Photo
+              </label>
+              {photoUrl && !photoFile && (
+                <div className="mb-2">
+                  <img
+                    src={photoUrl}
+                    alt="Property"
+                    className="h-32 w-auto rounded-lg object-cover border border-gray-200"
+                  />
+                </div>
+              )}
+              <input
+                id="photo"
+                type="file"
+                accept="image/*"
+                onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
+                className="w-full text-sm text-gray-500 file:mr-4 file:rounded-lg file:border-0 file:bg-green-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-green-700 hover:file:bg-green-100"
+              />
+              {photoUrl && (
+                <p className="mt-1 text-xs text-gray-400">
+                  Upload a new file to replace the current photo.
+                </p>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-2">
+              <div className="flex items-center gap-3">
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="rounded-lg bg-green-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-green-700 disabled:opacity-50 transition-colors"
+                >
+                  {submitting ? "Saving..." : "Save Changes"}
+                </button>
+                <Link
+                  href="/admin"
+                  className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  Cancel
+                </Link>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="rounded-lg bg-red-50 border border-red-200 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 transition-colors"
+              >
+                {deleting ? "Deleting..." : "Delete Listing"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}

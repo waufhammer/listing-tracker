@@ -1,0 +1,285 @@
+"use client";
+
+import { useState, useEffect, FormEvent } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+
+type ActivityType = "Buyer Showing" | "Agent Preview" | "Open House";
+
+export default function EditActivityEntryPage() {
+  const params = useParams();
+  const router = useRouter();
+  const id = params.id as string;
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const [activityType, setActivityType] = useState<ActivityType>("Buyer Showing");
+  const [activityDate, setActivityDate] = useState("");
+  const [agentName, setAgentName] = useState("");
+  const [isRepeatVisit, setIsRepeatVisit] = useState(false);
+  const [followUpSent, setFollowUpSent] = useState(false);
+  const [buyerPacketRequested, setBuyerPacketRequested] = useState(false);
+  const [rawFeedback, setRawFeedback] = useState("");
+  const [displayFeedback, setDisplayFeedback] = useState("");
+  const [feedbackVisible, setFeedbackVisible] = useState(false);
+  const [openHouseGroups, setOpenHouseGroups] = useState<number | "">("");
+
+  useEffect(() => {
+    async function fetchEntry() {
+      const { data } = await supabase
+        .from("activity_entries")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (data) {
+        setActivityType(data.activity_type as ActivityType);
+        setActivityDate(data.activity_date || "");
+        setAgentName(data.agent_name || "");
+        setIsRepeatVisit(data.is_repeat_visit || false);
+        setFollowUpSent(data.follow_up_sent || false);
+        setBuyerPacketRequested(data.buyer_packet_requested || false);
+        setRawFeedback(data.raw_feedback || "");
+        setDisplayFeedback(data.display_feedback || "");
+        setFeedbackVisible(data.feedback_visible || false);
+        setOpenHouseGroups(data.open_house_groups ?? "");
+      }
+      setLoading(false);
+    }
+    fetchEntry();
+  }, [id]);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+
+    const updates: Record<string, unknown> = {
+      activity_type: activityType,
+      activity_date: activityDate,
+      raw_feedback: rawFeedback || null,
+      display_feedback: displayFeedback || null,
+      feedback_visible: feedbackVisible,
+    };
+
+    if (activityType === "Open House") {
+      updates.open_house_groups = openHouseGroups === "" ? null : openHouseGroups;
+      updates.agent_name = null;
+      updates.is_repeat_visit = false;
+      updates.follow_up_sent = false;
+      updates.buyer_packet_requested = false;
+    } else {
+      updates.agent_name = agentName || null;
+      updates.is_repeat_visit = isRepeatVisit;
+      updates.follow_up_sent = followUpSent;
+      updates.buyer_packet_requested = buyerPacketRequested;
+      updates.open_house_groups = null;
+    }
+
+    const { error } = await supabase
+      .from("activity_entries")
+      .update(updates)
+      .eq("id", id);
+
+    if (!error) {
+      router.push("/admin/activity");
+    }
+    setSaving(false);
+  }
+
+  async function handleDelete() {
+    if (!confirm("Are you sure you want to delete this entry?")) return;
+    setDeleting(true);
+
+    const { error } = await supabase
+      .from("activity_entries")
+      .delete()
+      .eq("id", id);
+
+    if (!error) {
+      router.push("/admin/activity");
+    }
+    setDeleting(false);
+  }
+
+  if (loading) {
+    return (
+      <div className="max-w-2xl py-12 text-center text-gray-500">Loading...</div>
+    );
+  }
+
+  const isAgentType = activityType === "Buyer Showing" || activityType === "Agent Preview";
+
+  return (
+    <div className="max-w-2xl">
+      <h2 className="text-2xl font-semibold text-gray-900 mb-6">
+        Edit Activity Entry
+      </h2>
+
+      <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Activity type */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Activity Type
+            </label>
+            <select
+              value={activityType}
+              onChange={(e) => setActivityType(e.target.value as ActivityType)}
+              className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
+            >
+              <option>Buyer Showing</option>
+              <option>Agent Preview</option>
+              <option>Open House</option>
+            </select>
+          </div>
+
+          {/* Date */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Date
+            </label>
+            <input
+              type="date"
+              value={activityDate}
+              onChange={(e) => setActivityDate(e.target.value)}
+              required
+              className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
+            />
+          </div>
+
+          {isAgentType && (
+            <>
+              {/* Agent name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Agent Name
+                </label>
+                <input
+                  type="text"
+                  value={agentName}
+                  onChange={(e) => setAgentName(e.target.value)}
+                  className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
+                />
+              </div>
+
+              {/* Checkboxes */}
+              <div className="flex flex-wrap gap-6">
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={isRepeatVisit}
+                    onChange={(e) => setIsRepeatVisit(e.target.checked)}
+                    className="rounded border-gray-300 text-green-600 focus:ring-green-600"
+                  />
+                  Repeat Visit
+                </label>
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={followUpSent}
+                    onChange={(e) => setFollowUpSent(e.target.checked)}
+                    className="rounded border-gray-300 text-green-600 focus:ring-green-600"
+                  />
+                  Follow-up Sent
+                </label>
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={buyerPacketRequested}
+                    onChange={(e) => setBuyerPacketRequested(e.target.checked)}
+                    className="rounded border-gray-300 text-green-600 focus:ring-green-600"
+                  />
+                  Buyer Packet Requested
+                </label>
+              </div>
+            </>
+          )}
+
+          {activityType === "Open House" && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Number of Groups
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={openHouseGroups}
+                onChange={(e) =>
+                  setOpenHouseGroups(
+                    e.target.value === "" ? "" : parseInt(e.target.value)
+                  )
+                }
+                className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
+              />
+            </div>
+          )}
+
+          {/* Raw feedback */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Raw Feedback
+            </label>
+            <textarea
+              value={rawFeedback}
+              onChange={(e) => setRawFeedback(e.target.value)}
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
+            />
+          </div>
+
+          {/* Display feedback */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Display Feedback
+            </label>
+            <textarea
+              value={displayFeedback}
+              onChange={(e) => setDisplayFeedback(e.target.value)}
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
+            />
+          </div>
+
+          {/* Feedback visible toggle */}
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={feedbackVisible}
+              onChange={(e) => setFeedbackVisible(e.target.checked)}
+              className="rounded border-gray-300 text-green-600 focus:ring-green-600"
+            />
+            Feedback Visible to Client
+          </label>
+
+          {/* Actions */}
+          <div className="flex items-center gap-3 pt-4 border-t border-gray-200">
+            <button
+              type="submit"
+              disabled={saving}
+              className="px-4 py-2 bg-green-600 text-white rounded-md font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
+            >
+              {saving ? "Saving..." : "Save Changes"}
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push("/admin/activity")}
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md font-medium hover:bg-gray-200 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={deleting}
+              className="ml-auto px-4 py-2 bg-red-50 text-red-600 rounded-md font-medium hover:bg-red-100 disabled:opacity-50 transition-colors"
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
