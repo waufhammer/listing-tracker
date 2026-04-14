@@ -16,6 +16,7 @@ interface PlatformViewEntry {
   zillow_views: number | null;
   redfin_views: number | null;
   realtor_views: number | null;
+  compass_views: number | null;
 }
 
 interface PlatformViewsChartProps {
@@ -23,6 +24,7 @@ interface PlatformViewsChartProps {
   zillowVisible: boolean;
   redfinVisible: boolean;
   realtorVisible: boolean;
+  compassVisible: boolean;
 }
 
 const platformConfig = {
@@ -33,6 +35,7 @@ const platformConfig = {
     color: "#D92228",
     label: "Realtor.com",
   },
+  compass: { key: "compass_views" as const, color: "#000000", label: "Compass" },
 };
 
 function formatDate(dateStr: string) {
@@ -45,6 +48,7 @@ export default function PlatformViewsChart({
   zillowVisible,
   redfinVisible,
   realtorVisible,
+  compassVisible,
 }: PlatformViewsChartProps) {
   if (data.length === 0) {
     return (
@@ -54,22 +58,37 @@ export default function PlatformViewsChart({
     );
   }
 
-  const chartData = data.map((entry) => ({
-    date: formatDate(entry.date),
-    rawDate: entry.date,
-    ...(zillowVisible && { Zillow: entry.zillow_views ?? 0 }),
-    ...(redfinVisible && { Redfin: entry.redfin_views ?? 0 }),
-    ...(realtorVisible && { "Realtor.com": entry.realtor_views ?? 0 }),
-  }));
+  // Carry forward last known value when a platform has null for a given date
+  let lastZillow = 0;
+  let lastRedfin = 0;
+  let lastRealtor = 0;
+  let lastCompass = 0;
+
+  const chartData = data.map((entry) => {
+    if (entry.zillow_views != null) lastZillow = entry.zillow_views;
+    if (entry.redfin_views != null) lastRedfin = entry.redfin_views;
+    if (entry.realtor_views != null) lastRealtor = entry.realtor_views;
+    if (entry.compass_views != null) lastCompass = entry.compass_views;
+
+    return {
+      date: formatDate(entry.date),
+      rawDate: entry.date,
+      ...(zillowVisible && { Zillow: lastZillow }),
+      ...(redfinVisible && { Redfin: lastRedfin }),
+      ...(realtorVisible && { "Realtor.com": lastRealtor }),
+      ...(compassVisible && { Compass: lastCompass }),
+    };
+  });
 
   const visiblePlatforms = [
     ...(zillowVisible ? [platformConfig.zillow] : []),
     ...(redfinVisible ? [platformConfig.redfin] : []),
     ...(realtorVisible ? [platformConfig.realtor] : []),
+    ...(compassVisible ? [platformConfig.compass] : []),
   ];
 
   return (
-    <ResponsiveContainer width="100%" height={320}>
+    <ResponsiveContainer width="100%" height={260}>
       <LineChart
         data={chartData}
         margin={{ top: 8, right: 16, left: 0, bottom: 8 }}

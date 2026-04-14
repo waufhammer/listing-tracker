@@ -1,11 +1,22 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
-const STATUS_OPTIONS = ["Prepping", "Active", "Pending", "Sold"];
+interface Note {
+  id: string;
+  content: string;
+  created_at: string;
+}
+
+const STATUS_OPTIONS = [
+  { value: "prepping", label: "Prepping" },
+  { value: "active", label: "Active" },
+  { value: "pending", label: "Pending" },
+  { value: "sold", label: "Sold" },
+];
 
 function isValidSlug(slug: string): boolean {
   return /^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug);
@@ -20,9 +31,10 @@ export default function EditListingPage() {
   const [propertyAddress, setPropertyAddress] = useState("");
   const [slug, setSlug] = useState("");
   const [listDate, setListDate] = useState("");
-  const [status, setStatus] = useState("Prepping");
+  const [status, setStatus] = useState("prepping");
   const [zillowVisible, setZillowVisible] = useState(false);
   const [redfinVisible, setRedfinVisible] = useState(false);
+  const [compassVisible, setCompassVisible] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(true);
@@ -30,6 +42,48 @@ export default function EditListingPage() {
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+
+  // Notes state
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [newNote, setNewNote] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
+  const notesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (id) fetchNotes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  async function fetchNotes() {
+    const { data } = await supabase
+      .from("listing_notes")
+      .select("id, content, created_at")
+      .eq("listing_id", id)
+      .order("created_at", { ascending: true });
+    if (data) setNotes(data);
+  }
+
+  async function handleAddNote() {
+    if (!newNote.trim()) return;
+    setSavingNote(true);
+    const { error: noteError } = await supabase
+      .from("listing_notes")
+      .insert({ listing_id: id, content: newNote.trim() });
+    if (!noteError) {
+      setNewNote("");
+      await fetchNotes();
+      notesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+    setSavingNote(false);
+  }
+
+  async function handleDeleteNote(noteId: string) {
+    const { error: deleteErr } = await supabase
+      .from("listing_notes")
+      .delete()
+      .eq("id", noteId);
+    if (!deleteErr) setNotes((prev) => prev.filter((n) => n.id !== noteId));
+  }
 
   useEffect(() => {
     async function fetchListing() {
@@ -52,6 +106,7 @@ export default function EditListingPage() {
       setStatus(data.status ?? "Prepping");
       setZillowVisible(data.zillow_visible ?? false);
       setRedfinVisible(data.redfin_visible ?? false);
+      setCompassVisible(data.compass_visible ?? false);
       setPhotoUrl(data.photo_url ?? null);
       setLoading(false);
     }
@@ -126,18 +181,21 @@ export default function EditListingPage() {
       newPhotoUrl = publicUrl;
     }
 
+    const updateData: Record<string, unknown> = {
+      client_name: clientName.trim(),
+      property_address: propertyAddress.trim(),
+      slug,
+      list_date: listDate || null,
+      status,
+      zillow_visible: zillowVisible,
+      redfin_visible: redfinVisible,
+      compass_visible: compassVisible,
+    };
+    if (newPhotoUrl) updateData.photo_url = newPhotoUrl;
+
     const { error: updateError } = await supabase
       .from("listings")
-      .update({
-        client_name: clientName.trim(),
-        property_address: propertyAddress.trim(),
-        slug,
-        list_date: listDate || null,
-        status,
-        zillow_visible: zillowVisible,
-        redfin_visible: redfinVisible,
-        photo_url: newPhotoUrl,
-      })
+      .update(updateData)
       .eq("id", id);
 
     if (updateError) {
@@ -310,8 +368,8 @@ export default function EditListingPage() {
                 className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
               >
                 {STATUS_OPTIONS.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
+                  <option key={s.value} value={s.value}>
+                    {s.label}
                   </option>
                 ))}
               </select>
@@ -336,6 +394,15 @@ export default function EditListingPage() {
                   className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
                 />
                 Redfin Visible
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={compassVisible}
+                  onChange={(e) => setCompassVisible(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                />
+                Compass Visible
               </label>
             </div>
 
@@ -398,6 +465,77 @@ export default function EditListingPage() {
               </button>
             </div>
           </form>
+        </div>
+        {/* ── Internal Notes ─────────────────────────────────── */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-8 mt-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            Internal Notes
+          </h2>
+          <p className="text-xs text-gray-400 mb-4">
+            Only visible to admins. Not shown on the client dashboard.
+          </p>
+
+          {/* Notes list */}
+          {notes.length === 0 ? (
+            <p className="text-sm text-gray-400 mb-4">No notes yet.</p>
+          ) : (
+            <div className="space-y-3 mb-4 max-h-96 overflow-y-auto">
+              {notes.map((note) => (
+                <div
+                  key={note.id}
+                  className="group bg-gray-50 border border-gray-100 rounded-lg px-4 py-3"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap flex-1">
+                      {note.content}
+                    </p>
+                    <button
+                      onClick={() => handleDeleteNote(note.id)}
+                      className="text-gray-300 hover:text-red-500 transition-colors text-sm leading-none opacity-0 group-hover:opacity-100 shrink-0"
+                      title="Delete note"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {new Date(note.created_at).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                </div>
+              ))}
+              <div ref={notesEndRef} />
+            </div>
+          )}
+
+          {/* Add note */}
+          <div className="flex gap-2">
+            <textarea
+              value={newNote}
+              onChange={(e) => setNewNote(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  handleAddNote();
+                }
+              }}
+              placeholder="Add a note..."
+              rows={2}
+              className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500 resize-none"
+            />
+            <button
+              onClick={handleAddNote}
+              disabled={savingNote || !newNote.trim()}
+              className="self-end rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+            >
+              {savingNote ? "..." : "Add"}
+            </button>
+          </div>
+          <p className="text-xs text-gray-400 mt-1">Cmd+Enter to save</p>
         </div>
       </div>
     </div>

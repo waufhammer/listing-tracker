@@ -1,19 +1,20 @@
 "use client";
 
-import { useState, useEffect, FormEvent } from "react";
+import { useState, useEffect, FormEvent, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
 interface Listing {
   id: string;
-  address: string;
+  property_address: string;
 }
 
 interface ActivityEntry {
   id: string;
   listing_id: string;
-  activity_date: string;
-  activity_type: string;
+  date: string;
+  type: string;
   agent_name: string | null;
   is_repeat_visit: boolean;
   follow_up_sent: boolean;
@@ -27,13 +28,22 @@ interface ActivityEntry {
 
 type ActivityType = "Buyer Showing" | "Agent Preview" | "Open House";
 
-export default function ActivityEntryPage() {
+const activityTypeToDb: Record<ActivityType, string> = {
+  "Buyer Showing": "buyer_showing",
+  "Agent Preview": "agent_preview",
+  "Open House": "open_house",
+};
+
+function ActivityEntryContent() {
+  const searchParams = useSearchParams();
+  const listingParam = searchParams.get("listing");
   const [listings, setListings] = useState<Listing[]>([]);
-  const [selectedListingId, setSelectedListingId] = useState("");
+  const [selectedListingId, setSelectedListingId] = useState(listingParam || "");
   const [entries, setEntries] = useState<ActivityEntry[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const [repeatBanner, setRepeatBanner] = useState(false);
 
   // Form state
@@ -65,9 +75,19 @@ export default function ActivityEntryPage() {
   async function fetchListings() {
     const { data } = await supabase
       .from("listings")
-      .select("id, address")
-      .order("address");
-    if (data) setListings(data);
+      .select("id, property_address, status")
+      .order("property_address");
+    if (data) {
+      setListings(data);
+      if (!selectedListingId) {
+        const active = data.filter((l) => l.status === "active");
+        if (active.length === 1) {
+          setSelectedListingId(active[0].id);
+        } else if (data.length === 1) {
+          setSelectedListingId(data[0].id);
+        }
+      }
+    }
   }
 
   async function fetchEntries() {
@@ -76,7 +96,7 @@ export default function ActivityEntryPage() {
       .from("activity_entries")
       .select("*")
       .eq("listing_id", selectedListingId)
-      .order("activity_date", { ascending: false });
+      .order("date", { ascending: false });
     if (data) setEntries(data);
     setLoading(false);
   }
@@ -128,8 +148,8 @@ export default function ActivityEntryPage() {
 
     const entry: Record<string, unknown> = {
       listing_id: selectedListingId,
-      activity_date: activityDate,
-      activity_type: activityType,
+      date: activityDate,
+      type: activityTypeToDb[activityType],
       raw_feedback: rawFeedback || null,
       display_feedback: displayFeedback || null,
       feedback_visible: feedbackVisible,
@@ -144,9 +164,12 @@ export default function ActivityEntryPage() {
       entry.buyer_packet_requested = buyerPacketRequested;
     }
 
-    const { error } = await supabase.from("activity_entries").insert(entry);
+    const { error: insertError } = await supabase.from("activity_entries").insert(entry);
 
-    if (!error) {
+    if (insertError) {
+      setError(insertError.message);
+    } else {
+      setError("");
       resetForm();
       setShowForm(false);
       fetchEntries();
@@ -177,7 +200,7 @@ export default function ActivityEntryPage() {
           <option value="">-- Choose a listing --</option>
           {listings.map((l) => (
             <option key={l.id} value={l.id}>
-              {l.address}
+              {l.property_address}
             </option>
           ))}
         </select>
@@ -201,6 +224,11 @@ export default function ActivityEntryPage() {
               <h3 className="text-lg font-medium text-gray-900 mb-4">
                 New Activity Entry
               </h3>
+              {error && (
+                <div className="mb-4 rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-700">
+                  {error}
+                </div>
+              )}
               <form onSubmit={handleSubmit} className="space-y-4">
                 {/* Activity type */}
                 <div>
@@ -282,7 +310,7 @@ export default function ActivityEntryPage() {
                           onChange={(e) => setBuyerPacketRequested(e.target.checked)}
                           className="rounded border-gray-300 text-green-600 focus:ring-green-600"
                         />
-                        Buyer Packet Requested
+                        Disclosure Package Requested
                       </label>
                     </div>
                   </>
@@ -323,7 +351,7 @@ export default function ActivityEntryPage() {
                 {/* Display feedback */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Display Feedback
+                    Display Feedback (Client-Facing)
                   </label>
                   <textarea
                     value={displayFeedback}
@@ -335,7 +363,7 @@ export default function ActivityEntryPage() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
                   />
                   <p className="mt-1 text-xs text-gray-500">
-                    Auto-populates from raw feedback. Edit independently if needed.
+                    Auto-populates from raw feedback. Edit to customize what the client sees.
                   </p>
                 </div>
 
@@ -405,13 +433,13 @@ export default function ActivityEntryPage() {
                     {entries.map((entry) => (
                       <tr key={entry.id} className="hover:bg-gray-50">
                         <td className="px-6 py-3 text-gray-900">
-                          {entry.activity_date}
+                          {entry.date}
                         </td>
                         <td className="px-6 py-3 text-gray-900">
-                          {entry.activity_type}
+                          {entry.type}
                         </td>
                         <td className="px-6 py-3 text-gray-900">
-                          {entry.agent_name || (entry.activity_type === "Open House" ? `${entry.open_house_groups ?? 0} groups` : "-")}
+                          {entry.agent_name || (entry.type === "Open House" ? `${entry.open_house_groups ?? 0} groups` : "-")}
                         </td>
                         <td className="px-6 py-3">
                           {entry.is_repeat_visit && (
@@ -438,5 +466,13 @@ export default function ActivityEntryPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function ActivityEntryPage() {
+  return (
+    <Suspense fallback={<div className="text-gray-500">Loading...</div>}>
+      <ActivityEntryContent />
+    </Suspense>
   );
 }

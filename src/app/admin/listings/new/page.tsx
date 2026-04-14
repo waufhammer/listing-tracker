@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
-const STATUS_OPTIONS = ["Prepping", "Active", "Pending", "Sold"];
+const STATUS_OPTIONS = [
+  { value: "prepping", label: "Prepping" },
+  { value: "active", label: "Active" },
+  { value: "pending", label: "Pending" },
+  { value: "sold", label: "Sold" },
+];
 
 function slugify(name: string): string {
   const parts = name.trim().split(/\s+/);
@@ -27,9 +32,10 @@ export default function NewListingPage() {
   const [propertyAddress, setPropertyAddress] = useState("");
   const [slug, setSlug] = useState("");
   const [listDate, setListDate] = useState("");
-  const [status, setStatus] = useState("Prepping");
+  const [status, setStatus] = useState("prepping");
   const [zillowVisible, setZillowVisible] = useState(false);
   const [redfinVisible, setRedfinVisible] = useState(false);
+  const [compassVisible, setCompassVisible] = useState(false);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -102,7 +108,7 @@ export default function NewListingPage() {
     }
 
     // Insert listing
-    const { error: insertError } = await supabase.from("listings").insert({
+    const listingData: Record<string, unknown> = {
       client_name: clientName.trim(),
       property_address: propertyAddress.trim(),
       slug,
@@ -110,8 +116,11 @@ export default function NewListingPage() {
       status,
       zillow_visible: zillowVisible,
       redfin_visible: redfinVisible,
-      photo_url: photoUrl,
-    });
+      compass_visible: compassVisible,
+    };
+    if (photoUrl) listingData.photo_url = photoUrl;
+
+    const { error: insertError } = await supabase.from("listings").insert(listingData);
 
     if (insertError) {
       setError(`Failed to create listing: ${insertError.message}`);
@@ -240,8 +249,8 @@ export default function NewListingPage() {
                 className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
               >
                 {STATUS_OPTIONS.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
+                  <option key={s.value} value={s.value}>
+                    {s.label}
                   </option>
                 ))}
               </select>
@@ -266,6 +275,15 @@ export default function NewListingPage() {
                   className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
                 />
                 Redfin Visible
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={compassVisible}
+                  onChange={(e) => setCompassVisible(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                />
+                Compass Visible
               </label>
             </div>
 

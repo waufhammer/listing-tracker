@@ -6,11 +6,24 @@ import { supabase } from "@/lib/supabase";
 
 type ActivityType = "Buyer Showing" | "Agent Preview" | "Open House";
 
+const dbToDisplay: Record<string, ActivityType> = {
+  buyer_showing: "Buyer Showing",
+  agent_preview: "Agent Preview",
+  open_house: "Open House",
+};
+
+const displayToDb: Record<ActivityType, string> = {
+  "Buyer Showing": "buyer_showing",
+  "Agent Preview": "agent_preview",
+  "Open House": "open_house",
+};
+
 export default function EditActivityEntryPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
 
+  const [listingId, setListingId] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -35,8 +48,10 @@ export default function EditActivityEntryPage() {
         .single();
 
       if (data) {
-        setActivityType(data.activity_type as ActivityType);
-        setActivityDate(data.activity_date || "");
+        setListingId(data.listing_id || "");
+        const rawType = data.type || data.activity_type || "";
+        setActivityType(dbToDisplay[rawType] || rawType as ActivityType);
+        setActivityDate(data.date || data.activity_date || "");
         setAgentName(data.agent_name || "");
         setIsRepeatVisit(data.is_repeat_visit || false);
         setFollowUpSent(data.follow_up_sent || false);
@@ -56,8 +71,8 @@ export default function EditActivityEntryPage() {
     setSaving(true);
 
     const updates: Record<string, unknown> = {
-      activity_type: activityType,
-      activity_date: activityDate,
+      type: displayToDb[activityType] || activityType,
+      date: activityDate,
       raw_feedback: rawFeedback || null,
       display_feedback: displayFeedback || null,
       feedback_visible: feedbackVisible,
@@ -83,7 +98,7 @@ export default function EditActivityEntryPage() {
       .eq("id", id);
 
     if (!error) {
-      router.push("/admin/activity");
+      router.push(`/admin/activity?listing=${listingId}`);
     }
     setSaving(false);
   }
@@ -98,7 +113,7 @@ export default function EditActivityEntryPage() {
       .eq("id", id);
 
     if (!error) {
-      router.push("/admin/activity");
+      router.push(`/admin/activity?listing=${listingId}`);
     }
     setDeleting(false);
   }
@@ -191,7 +206,7 @@ export default function EditActivityEntryPage() {
                     onChange={(e) => setBuyerPacketRequested(e.target.checked)}
                     className="rounded border-gray-300 text-green-600 focus:ring-green-600"
                   />
-                  Buyer Packet Requested
+                  Disclosure Package Requested
                 </label>
               </div>
             </>

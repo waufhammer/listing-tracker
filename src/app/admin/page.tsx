@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 type Listing = {
@@ -13,34 +14,25 @@ type Listing = {
   list_date: string | null;
 };
 
-type ShowingCount = {
-  listing_id: string;
-  count: number;
-};
+const COLUMNS = [
+  { key: "prepping", label: "Prepping", color: "border-yellow-400", bg: "bg-yellow-50", badge: "bg-yellow-100 text-yellow-800" },
+  { key: "active", label: "Active", color: "border-green-500", bg: "bg-green-50", badge: "bg-green-100 text-green-800" },
+  { key: "pending", label: "Pending", color: "border-blue-400", bg: "bg-blue-50", badge: "bg-blue-100 text-blue-800" },
+  { key: "sold", label: "Sold", color: "border-gray-400", bg: "bg-gray-50", badge: "bg-gray-100 text-gray-700" },
+];
 
-const STATUS_OPTIONS = ["All", "Prepping", "Active", "Pending", "Sold"] as const;
-
-const statusColor: Record<string, string> = {
-  Prepping: "bg-yellow-100 text-yellow-800",
-  Active: "bg-green-100 text-green-800",
-  Pending: "bg-blue-100 text-blue-800",
-  Sold: "bg-gray-100 text-gray-800",
-};
-
-function daysOnMarket(listDate: string | null): string {
-  if (!listDate) return "—";
+function daysOnMarket(listDate: string | null): number | null {
+  if (!listDate) return null;
   const start = new Date(listDate);
   const now = new Date();
-  const diff = Math.floor(
-    (now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)
-  );
-  return diff >= 0 ? String(diff) : "—";
+  const diff = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+  return diff >= 0 ? diff : null;
 }
 
 export default function AdminListingsPage() {
+  const router = useRouter();
   const [listings, setListings] = useState<Listing[]>([]);
   const [showingCounts, setShowingCounts] = useState<Record<string, number>>({});
-  const [statusFilter, setStatusFilter] = useState("All");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -61,7 +53,6 @@ export default function AdminListingsPage() {
       const listingsResult = (listingsData ?? []) as Listing[];
       setListings(listingsResult);
 
-      // Fetch showing counts for all listings
       const counts: Record<string, number> = {};
       await Promise.all(
         listingsResult.map(async (listing) => {
@@ -84,122 +75,85 @@ export default function AdminListingsPage() {
     fetchData();
   }, []);
 
-  const filtered =
-    statusFilter === "All"
-      ? listings
-      : listings.filter(
-          (l) => l.status?.toLowerCase() === statusFilter.toLowerCase()
-        );
+  if (loading) {
+    return (
+      <div className="py-12 text-center text-gray-500">Loading...</div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Listings</h1>
-          <Link
-            href="/admin/listings/new"
-            className="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-700 transition-colors"
-          >
-            + New Listing
-          </Link>
-        </div>
+    <div>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-2xl font-bold text-gray-900">Listings</h1>
+        <Link
+          href="/admin/listings/new"
+          className="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-700 transition-colors"
+        >
+          + New Listing
+        </Link>
+      </div>
 
-        {/* Filter */}
-        <div className="mb-6">
-          <label
-            htmlFor="status-filter"
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
-            Filter by status
-          </label>
-          <select
-            id="status-filter"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-          >
-            {STATUS_OPTIONS.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </div>
+      {/* Kanban board */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        {COLUMNS.map((col) => {
+          const colListings = listings.filter(
+            (l) => l.status?.toLowerCase() === col.key
+          );
 
-        {/* Table card */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          {loading ? (
-            <div className="p-12 text-center text-gray-500">Loading...</div>
-          ) : filtered.length === 0 ? (
-            <div className="p-12 text-center text-gray-500">
-              No listings found.
+          return (
+            <div key={col.key} className="min-w-0">
+              {/* Column header */}
+              <div className={`flex items-center gap-2 mb-3 pb-2 border-b-2 ${col.color}`}>
+                <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">
+                  {col.label}
+                </h2>
+                <span className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold ${col.badge}`}>
+                  {colListings.length}
+                </span>
+              </div>
+
+              {/* Cards */}
+              <div className="space-y-3">
+                {colListings.length === 0 ? (
+                  <div className={`rounded-xl border border-dashed border-gray-200 ${col.bg} p-6 text-center`}>
+                    <p className="text-xs text-gray-400">No listings</p>
+                  </div>
+                ) : (
+                  colListings.map((listing) => {
+                    const dom = daysOnMarket(listing.list_date);
+                    const showings = showingCounts[listing.id] ?? 0;
+
+                    return (
+                      <div
+                        key={listing.id}
+                        onClick={() => router.push(`/admin/listings/${listing.id}`)}
+                        className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md hover:border-gray-300 cursor-pointer transition-all group"
+                      >
+                        <p className="text-sm font-semibold text-gray-900 group-hover:text-green-700 transition-colors leading-snug">
+                          {listing.property_address}
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {listing.client_name}
+                        </p>
+
+                        {/* Meta row */}
+                        <div className="flex items-center gap-3 mt-3 text-xs text-gray-500">
+                          {dom !== null && (
+                            <span>{dom}d on market</span>
+                          )}
+                          {showings > 0 && (
+                            <span>{showings} showing{showings !== 1 ? "s" : ""}</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Address
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Client Name
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Days on Market
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Total Showings
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {filtered.map((listing) => (
-                    <tr key={listing.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900 whitespace-nowrap">
-                        {listing.property_address}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
-                        {listing.client_name}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${
-                            statusColor[listing.status] ??
-                            "bg-gray-100 text-gray-800"
-                          }`}
-                        >
-                          {listing.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
-                        {daysOnMarket(listing.list_date)}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-700 whitespace-nowrap">
-                        {showingCounts[listing.id] ?? 0}
-                      </td>
-                      <td className="px-6 py-4 text-right whitespace-nowrap">
-                        <Link
-                          href={`/admin/listings/${listing.id}/edit`}
-                          className="text-sm font-medium text-green-600 hover:text-green-800 transition-colors"
-                        >
-                          Edit
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+          );
+        })}
       </div>
     </div>
   );

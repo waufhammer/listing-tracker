@@ -1,13 +1,48 @@
 "use client";
 
+import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 const navItems = [
   { label: "Listings", href: "/admin" },
-  { label: "Activity Entry", href: "/admin/activity" },
-  { label: "Platform Views", href: "/admin/views" },
+  { label: "Analytics", href: "/admin/analytics" },
 ];
+
+function NavContent({
+  pathname,
+  onNavigate,
+}: {
+  pathname: string;
+  onNavigate?: () => void;
+}) {
+  return (
+    <nav className="flex-1 px-3 py-4 space-y-1">
+      {navItems.map((item) => {
+        const isActive =
+          item.href === "/admin"
+            ? pathname === "/admin" || pathname.startsWith("/admin/listings")
+            : pathname.startsWith(item.href);
+
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            onClick={onNavigate}
+            className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+              isActive
+                ? "bg-gray-100 text-gray-900"
+                : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+            }`}
+          >
+            {item.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
 
 export default function AdminLayout({
   children,
@@ -16,8 +51,8 @@ export default function AdminLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Don't render the admin shell on the login page
   if (pathname === "/admin/login") {
     return <>{children}</>;
   }
@@ -28,38 +63,74 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="min-h-screen bg-white flex">
-      {/* Sidebar */}
-      <aside className="w-64 border-r border-gray-200 flex flex-col">
-        <div className="px-6 py-5 border-b border-gray-200">
-          <h1 className="text-lg font-semibold text-gray-900">
-            Aufhammer Homes Admin
-          </h1>
+    <div className="min-h-screen bg-white lg:flex">
+      {/* Mobile header */}
+      <div className="lg:hidden flex items-center justify-between border-b border-gray-200 px-4 py-3">
+        <div>
+          <Image src="/logo-horiz-black.png" alt="Aufhammer Homes" width={150} height={56} className="h-7 w-auto" />
+          <p className="text-[10px] font-medium text-gray-500 tracking-wide uppercase mt-0.5">Listing Activity Tracker</p>
         </div>
+        <button
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="p-2 rounded-md text-gray-600 hover:bg-gray-100 transition-colors"
+        >
+          {mobileMenuOpen ? (
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          ) : (
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          )}
+        </button>
+      </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-1">
-          {navItems.map((item) => {
-            const isActive =
-              item.href === "/admin"
-                ? pathname === "/admin"
-                : pathname.startsWith(item.href);
-
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  isActive
-                    ? "bg-gray-100 text-gray-900"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                }`}
+      {/* Mobile slide-out menu */}
+      {mobileMenuOpen && (
+        <>
+          <div
+            className="lg:hidden fixed inset-0 bg-black/30 z-40"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          <div className="lg:hidden fixed inset-y-0 left-0 w-64 bg-white border-r border-gray-200 z-50 flex flex-col">
+            <div className="px-6 py-5 border-b border-gray-200 flex items-center justify-between">
+              <div>
+                <Image src="/logo-horiz-black.png" alt="Aufhammer Homes" width={150} height={56} className="h-7 w-auto" />
+                <p className="text-[10px] font-medium text-gray-500 tracking-wide uppercase mt-0.5">Listing Activity Tracker</p>
+              </div>
+              <button
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-1 rounded-md text-gray-400 hover:text-gray-600"
               >
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <NavContent
+              pathname={pathname}
+              onNavigate={() => setMobileMenuOpen(false)}
+            />
+            <div className="px-3 py-4 border-t border-gray-200">
+              <button
+                onClick={handleLogout}
+                className="w-full px-3 py-2 text-left text-sm font-medium text-gray-600 rounded-md hover:bg-gray-50 hover:text-gray-900 transition-colors"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
+      {/* Desktop sidebar */}
+      <aside className="hidden lg:flex w-64 border-r border-gray-200 flex-col flex-shrink-0">
+        <div className="px-6 py-5 border-b border-gray-200">
+          <Image src="/logo-horiz-black.png" alt="Aufhammer Homes" width={180} height={67} className="h-8 w-auto" />
+          <p className="text-[10px] font-medium text-gray-500 tracking-wide uppercase mt-1">Listing Activity Tracker</p>
+        </div>
+        <NavContent pathname={pathname} />
         <div className="px-3 py-4 border-t border-gray-200">
           <button
             onClick={handleLogout}
@@ -71,7 +142,7 @@ export default function AdminLayout({
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 p-8">{children}</main>
+      <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
     </div>
   );
 }

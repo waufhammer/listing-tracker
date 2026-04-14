@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, FormEvent } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 
 export default function AdminLoginPage() {
@@ -38,9 +39,10 @@ export default function AdminLoginPage() {
   return (
     <div className="min-h-screen bg-white flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        <h1 className="text-2xl font-semibold text-gray-900 text-center mb-8">
-          Aufhammer Homes Admin
-        </h1>
+        <div className="text-center mb-8">
+          <Image src="/logo-horiz-black.png" alt="Aufhammer Homes" width={240} height={89} className="h-12 w-auto mx-auto" />
+          <p className="text-xs font-medium text-gray-500 tracking-wide uppercase mt-2">Listing Activity Tracker</p>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
