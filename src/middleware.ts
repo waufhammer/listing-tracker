@@ -1,7 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-// Auth temporarily disabled for development
-export function middleware() {
+export function middleware(request: NextRequest) {
+  const session = request.cookies.get("admin_session");
+
+  if (!session || session.value !== "authenticated") {
+    return NextResponse.redirect(new URL("/admin/login", request.url));
+  }
+
   return NextResponse.next();
 }
 
