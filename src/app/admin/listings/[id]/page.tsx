@@ -18,6 +18,7 @@ interface Listing {
   redfin_visible: boolean;
   compass_visible: boolean;
   realtor_visible: boolean;
+  platform_views_public: boolean;
   photo_url: string | null;
 }
 
@@ -250,8 +251,6 @@ export default function ListingDetailPage() {
   const openHouseCount = entries.filter((e) => e.type === "open_house").length;
   const dom = listing ? daysOnMarket(listing.list_date) : null;
 
-  const hasPlatforms =
-    listing?.zillow_visible || listing?.redfin_visible || listing?.compass_visible || listing?.realtor_visible;
   const latestView = views.length > 0 ? views[0] : null;
   const totalPlatformViews =
     (latestView?.zillow_views ?? 0) +
@@ -417,10 +416,10 @@ export default function ListingDetailPage() {
       listing_id: id,
       date: viewDate,
     };
-    if (listing?.zillow_visible) row.zillow_views = zillowViewCount === "" ? null : zillowViewCount;
-    if (listing?.redfin_visible) row.redfin_views = redfinViewCount === "" ? null : redfinViewCount;
-    if (listing?.compass_visible) row.compass_views = compassViewCount === "" ? null : compassViewCount;
-    if (listing?.realtor_visible) row.realtor_views = realtorViewCount === "" ? null : realtorViewCount;
+    row.zillow_views = zillowViewCount === "" ? null : zillowViewCount;
+    row.redfin_views = redfinViewCount === "" ? null : redfinViewCount;
+    row.compass_views = compassViewCount === "" ? null : compassViewCount;
+    row.realtor_views = realtorViewCount === "" ? null : realtorViewCount;
 
     const { error } = await supabase.from("platform_views").insert(row);
 
@@ -451,11 +450,12 @@ export default function ListingDetailPage() {
 
   async function handleSaveViewEdit(viewId: string) {
     setSavingViewEdit(true);
-    const updates: Record<string, unknown> = {};
-    if (listing?.zillow_visible) updates.zillow_views = editViewData.zillow_views === "" ? null : editViewData.zillow_views;
-    if (listing?.redfin_visible) updates.redfin_views = editViewData.redfin_views === "" ? null : editViewData.redfin_views;
-    if (listing?.compass_visible) updates.compass_views = editViewData.compass_views === "" ? null : editViewData.compass_views;
-    if (listing?.realtor_visible) updates.realtor_views = editViewData.realtor_views === "" ? null : editViewData.realtor_views;
+    const updates: Record<string, unknown> = {
+      zillow_views: editViewData.zillow_views === "" ? null : editViewData.zillow_views,
+      redfin_views: editViewData.redfin_views === "" ? null : editViewData.redfin_views,
+      compass_views: editViewData.compass_views === "" ? null : editViewData.compass_views,
+      realtor_views: editViewData.realtor_views === "" ? null : editViewData.realtor_views,
+    };
 
     const { error } = await supabase.from("platform_views").update(updates).eq("id", viewId);
     if (error) {
@@ -644,9 +644,7 @@ export default function ListingDetailPage() {
         <StatCard label="Agent Previews" value={agentPreviewCount} />
         <StatCard label="Open Houses" value={openHouseCount} />
         <StatCard label="Days on Market" value={dom ?? "--"} />
-        {hasPlatforms && (
-          <StatCard label="Total Platform Views" value={totalPlatformViews} />
-        )}
+        <StatCard label="Total Platform Views" value={totalPlatformViews} />
       </div>
 
       {/* ════════════════════════════════════════════════════════════════════
@@ -1092,13 +1090,28 @@ export default function ListingDetailPage() {
       {/* ════════════════════════════════════════════════════════════════════
           5. PLATFORM VIEWS
       ════════════════════════════════════════════════════════════════════ */}
-      {hasPlatforms && (
         <section className="mb-8">
           <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">
                 Platform Views
               </h2>
+              <label className="flex items-center gap-2 text-sm text-gray-600">
+                <span>{listing.platform_views_public ? "Visible to client" : "Hidden from client"}</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={listing.platform_views_public}
+                  onClick={async () => {
+                    const newVal = !listing.platform_views_public;
+                    const { error } = await supabase.from("listings").update({ platform_views_public: newVal }).eq("id", listing.id);
+                    if (!error) setListing({ ...listing, platform_views_public: newVal });
+                  }}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${listing.platform_views_public ? "bg-green-600" : "bg-gray-300"}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${listing.platform_views_public ? "translate-x-6" : "translate-x-1"}`} />
+                </button>
+              </label>
             </div>
 
             {/* Add new view entry */}
@@ -1119,8 +1132,7 @@ export default function ListingDetailPage() {
                     className="px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
                   />
                 </div>
-                {listing.zillow_visible && (
-                  <div>
+                <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">
                       Zillow Views
                     </label>
@@ -1135,9 +1147,7 @@ export default function ListingDetailPage() {
                       className="w-28 px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
                     />
                   </div>
-                )}
-                {listing.redfin_visible && (
-                  <div>
+                <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">
                       Redfin Views
                     </label>
@@ -1152,9 +1162,7 @@ export default function ListingDetailPage() {
                       className="w-28 px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
                     />
                   </div>
-                )}
-                {listing.compass_visible && (
-                  <div>
+                <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">
                       Compass Views
                     </label>
@@ -1169,9 +1177,7 @@ export default function ListingDetailPage() {
                       className="w-28 px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
                     />
                   </div>
-                )}
-                {listing.realtor_visible && (
-                  <div>
+                <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">
                       Realtor Views
                     </label>
@@ -1186,7 +1192,6 @@ export default function ListingDetailPage() {
                       className="w-28 px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
                     />
                   </div>
-                )}
                 <button
                   type="submit"
                   disabled={savingViews}
@@ -1208,18 +1213,10 @@ export default function ListingDetailPage() {
                   <thead className="bg-gray-50 text-left text-gray-600">
                     <tr>
                       <th className="px-6 py-3 font-medium">Date</th>
-                      {listing.zillow_visible && (
-                        <th className="px-6 py-3 font-medium">Zillow</th>
-                      )}
-                      {listing.redfin_visible && (
-                        <th className="px-6 py-3 font-medium">Redfin</th>
-                      )}
-                      {listing.compass_visible && (
-                        <th className="px-6 py-3 font-medium">Compass</th>
-                      )}
-                      {listing.realtor_visible && (
-                        <th className="px-6 py-3 font-medium">Realtor</th>
-                      )}
+                      <th className="px-6 py-3 font-medium">Zillow</th>
+                      <th className="px-6 py-3 font-medium">Redfin</th>
+                      <th className="px-6 py-3 font-medium">Compass</th>
+                      <th className="px-6 py-3 font-medium">Realtor</th>
                       <th className="px-6 py-3 font-medium w-28"></th>
                     </tr>
                   </thead>
@@ -1229,42 +1226,34 @@ export default function ListingDetailPage() {
                       return (
                       <tr key={v.id} className="hover:bg-gray-50">
                         <td className="px-6 py-3 text-gray-900">{v.date}</td>
-                        {listing.zillow_visible && (
-                          <td className="px-6 py-3">
+                        <td className="px-6 py-3">
                             {isEditing ? (
                               <input type="number" min="0" value={editViewData.zillow_views} onChange={(e) => setEditViewData({ ...editViewData, zillow_views: e.target.value === "" ? "" : parseInt(e.target.value) })} className="w-24 px-2 py-1 border border-gray-300 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600" />
                             ) : (
                               <span className="text-gray-700">{v.zillow_views ?? "--"}</span>
                             )}
                           </td>
-                        )}
-                        {listing.redfin_visible && (
-                          <td className="px-6 py-3">
+                        <td className="px-6 py-3">
                             {isEditing ? (
                               <input type="number" min="0" value={editViewData.redfin_views} onChange={(e) => setEditViewData({ ...editViewData, redfin_views: e.target.value === "" ? "" : parseInt(e.target.value) })} className="w-24 px-2 py-1 border border-gray-300 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600" />
                             ) : (
                               <span className="text-gray-700">{v.redfin_views ?? "--"}</span>
                             )}
                           </td>
-                        )}
-                        {listing.compass_visible && (
-                          <td className="px-6 py-3">
+                        <td className="px-6 py-3">
                             {isEditing ? (
                               <input type="number" min="0" value={editViewData.compass_views} onChange={(e) => setEditViewData({ ...editViewData, compass_views: e.target.value === "" ? "" : parseInt(e.target.value) })} className="w-24 px-2 py-1 border border-gray-300 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600" />
                             ) : (
                               <span className="text-gray-700">{v.compass_views ?? "--"}</span>
                             )}
                           </td>
-                        )}
-                        {listing.realtor_visible && (
-                          <td className="px-6 py-3">
+                        <td className="px-6 py-3">
                             {isEditing ? (
                               <input type="number" min="0" value={editViewData.realtor_views} onChange={(e) => setEditViewData({ ...editViewData, realtor_views: e.target.value === "" ? "" : parseInt(e.target.value) })} className="w-24 px-2 py-1 border border-gray-300 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600" />
                             ) : (
                               <span className="text-gray-700">{v.realtor_views ?? "--"}</span>
                             )}
                           </td>
-                        )}
                         <td className="px-6 py-3 text-right">
                           {isEditing ? (
                             <div className="flex gap-2 justify-end">
@@ -1287,7 +1276,6 @@ export default function ListingDetailPage() {
             )}
           </div>
         </section>
-      )}
 
       {/* ════════════════════════════════════════════════════════════════════
           6. EDIT LISTING (collapsible)
@@ -1391,37 +1379,6 @@ export default function ListingDetailPage() {
                     </option>
                   ))}
                 </select>
-              </div>
-
-              {/* Platform visibility */}
-              <div className="flex flex-col sm:flex-row gap-4">
-                <label className="flex items-center gap-2 text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={editZillow}
-                    onChange={(e) => setEditZillow(e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
-                  />
-                  Zillow Visible
-                </label>
-                <label className="flex items-center gap-2 text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={editRedfin}
-                    onChange={(e) => setEditRedfin(e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
-                  />
-                  Redfin Visible
-                </label>
-                <label className="flex items-center gap-2 text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={editCompass}
-                    onChange={(e) => setEditCompass(e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
-                  />
-                  Compass Visible
-                </label>
               </div>
 
               {/* Photo */}

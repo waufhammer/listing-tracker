@@ -375,37 +375,6 @@ export default function EditListingPage() {
               </select>
             </div>
 
-            {/* Visibility checkboxes */}
-            <div className="flex flex-col sm:flex-row gap-4">
-              <label className="flex items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={zillowVisible}
-                  onChange={(e) => setZillowVisible(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
-                />
-                Zillow Visible
-              </label>
-              <label className="flex items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={redfinVisible}
-                  onChange={(e) => setRedfinVisible(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
-                />
-                Redfin Visible
-              </label>
-              <label className="flex items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={compassVisible}
-                  onChange={(e) => setCompassVisible(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
-                />
-                Compass Visible
-              </label>
-            </div>
-
             {/* Photo Upload */}
             <div>
               <label

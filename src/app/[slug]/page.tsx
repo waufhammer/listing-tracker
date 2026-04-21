@@ -147,7 +147,7 @@ export default async function ClientDashboardPage({
 
   // Platform views
   const latestView = views.length > 0 ? views[views.length - 1] : null;
-  const showPlatformViews = listing.zillow_visible || listing.redfin_visible || listing.realtor_visible || listing.compass_visible;
+  const showPlatformViews = listing.platform_views_public;
 
   const totalPlatformViews =
     (latestView?.zillow_views ?? 0) +
