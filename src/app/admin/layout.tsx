@@ -65,11 +65,7 @@ export default function AdminLayout({
   return (
     <div className="min-h-screen bg-white lg:flex">
       {/* Mobile header */}
-      <div className="lg:hidden flex items-center justify-between border-b border-gray-200 px-4 py-3">
-        <div>
-          <Image src="/logo-horiz-black.png" alt="Aufhammer Homes" width={150} height={56} className="h-7 w-auto" />
-          <p className="text-[10px] font-medium text-gray-500 tracking-wide uppercase mt-0.5">Listing Activity Tracker</p>
-        </div>
+      <div className="lg:hidden flex items-center gap-3 border-b border-gray-200 px-4 py-3">
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           className="p-2 rounded-md text-gray-600 hover:bg-gray-100 transition-colors"
@@ -84,6 +80,10 @@ export default function AdminLayout({
             </svg>
           )}
         </button>
+        <div>
+          <Image src="/logo-horiz-black.png" alt="Aufhammer Homes" width={150} height={56} className="h-7 w-auto" />
+          <p className="text-[10px] font-medium text-gray-500 tracking-wide uppercase mt-0.5">Listing Activity Tracker</p>
+        </div>
       </div>
 
       {/* Mobile slide-out menu */}
