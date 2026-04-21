@@ -4,8 +4,8 @@ export async function POST(request: NextRequest) {
   try {
     const { password } = await request.json();
 
-    const envPassword = process.env.ADMIN_PASSWORD;
-    console.log("ADMIN_PASSWORD env var exists:", !!envPassword, "length:", envPassword?.length);
+    const envPassword = process.env.ADMIN_PASSWORD?.trim();
+    console.log("env length:", envPassword?.length, "input length:", password?.length, "match:", password === envPassword);
 
     if (!password || password !== envPassword) {
       return NextResponse.json(
