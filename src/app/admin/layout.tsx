@@ -13,9 +13,11 @@ const navItems = [
 function NavContent({
   pathname,
   onNavigate,
+  onLogout,
 }: {
   pathname: string;
   onNavigate?: () => void;
+  onLogout: () => void;
 }) {
   return (
     <nav className="flex-1 px-3 py-4 space-y-1">
@@ -40,6 +42,12 @@ function NavContent({
           </Link>
         );
       })}
+      <button
+        onClick={onLogout}
+        className="w-full px-3 py-2 text-left text-sm font-medium text-gray-600 rounded-md hover:bg-gray-50 hover:text-gray-900 transition-colors"
+      >
+        Logout
+      </button>
     </nav>
   );
 }
@@ -111,15 +119,8 @@ export default function AdminLayout({
             <NavContent
               pathname={pathname}
               onNavigate={() => setMobileMenuOpen(false)}
+              onLogout={handleLogout}
             />
-            <div className="px-3 py-4 border-t border-gray-200">
-              <button
-                onClick={handleLogout}
-                className="w-full px-3 py-2 text-left text-sm font-medium text-gray-600 rounded-md hover:bg-gray-50 hover:text-gray-900 transition-colors"
-              >
-                Logout
-              </button>
-            </div>
           </div>
         </>
       )}
@@ -130,15 +131,7 @@ export default function AdminLayout({
           <Image src="/logo-horiz-black.png" alt="Aufhammer Homes" width={180} height={67} className="h-8 w-auto" />
           <p className="text-[10px] font-medium text-gray-500 tracking-wide uppercase mt-1">Listing Activity Tracker</p>
         </div>
-        <NavContent pathname={pathname} />
-        <div className="px-3 py-4 border-t border-gray-200">
-          <button
-            onClick={handleLogout}
-            className="w-full px-3 py-2 text-left text-sm font-medium text-gray-600 rounded-md hover:bg-gray-50 hover:text-gray-900 transition-colors"
-          >
-            Logout
-          </button>
-        </div>
+        <NavContent pathname={pathname} onLogout={handleLogout} />
       </aside>
 
       {/* Main content */}
