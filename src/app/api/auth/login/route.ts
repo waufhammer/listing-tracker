@@ -4,7 +4,10 @@ export async function POST(request: NextRequest) {
   try {
     const { password } = await request.json();
 
-    if (!password || password !== process.env.ADMIN_PASSWORD) {
+    const envPassword = process.env.ADMIN_PASSWORD;
+    console.log("ADMIN_PASSWORD env var exists:", !!envPassword, "length:", envPassword?.length);
+
+    if (!password || password !== envPassword) {
       return NextResponse.json(
         { error: "Invalid password" },
         { status: 401 }
