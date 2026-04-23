@@ -152,7 +152,6 @@ export default async function ClientDashboardPage({
   const totalPlatformViews =
     (latestView?.zillow_views ?? 0) +
     (latestView?.redfin_views ?? 0) +
-    (latestView?.realtor_views ?? 0) +
     (latestView?.compass_views ?? 0);
 
   // Activity summary data for horizontal bar chart
@@ -220,7 +219,7 @@ export default async function ClientDashboardPage({
       </div>
 
       {/* ── Main Content ─────────────────────────────────────── */}
-      <div className="max-w-4xl">
+      <div>
 
         {/* Last updated */}
         {lastUpdated && (
@@ -229,108 +228,95 @@ export default async function ClientDashboardPage({
           </p>
         )}
 
-        {/* ── Stats + Activity Summary (compact) ─────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-10">
-          {/* Left: stat cards in a tight grid + activity summary bar chart */}
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-4">Showing Activity</h3>
-            <div className="grid grid-cols-3 gap-2 mb-3">
-              <div className="bg-white border border-gray-100 rounded-xl px-3 py-3">
-                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">Showings</p>
-                <p className="text-2xl font-bold text-gray-900">{buyerShowings.length}</p>
-              </div>
-              <div className="bg-white border border-gray-100 rounded-xl px-3 py-3">
-                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">Previews</p>
-                <p className="text-2xl font-bold text-gray-900">{agentPreviews.length}</p>
-              </div>
-              <div className="bg-white border border-gray-100 rounded-xl px-3 py-3">
-                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">OH Groups</p>
-                <p className="text-2xl font-bold text-gray-900">{totalOpenHouseGroups}</p>
-              </div>
-              <div className="bg-white border border-gray-100 rounded-xl px-3 py-3">
-                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">Disclosures</p>
-                <p className="text-2xl font-bold text-gray-900">{disclosureRequests}</p>
-              </div>
-              <div className="bg-white border border-gray-100 rounded-xl px-3 py-3">
-                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">Online Views</p>
-                <p className="text-2xl font-bold text-gray-900">{showPlatformViews && latestView ? totalPlatformViews.toLocaleString() : "—"}</p>
-              </div>
-              <div className="bg-white border border-gray-100 rounded-xl px-3 py-3">
-                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">Last 7 Days</p>
-                <p className="text-2xl font-bold text-gray-900">{showingsLast7}</p>
-              </div>
+        {/* ── Showing Activity ─────────────────────────────── */}
+        <section className="mb-10">
+          <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-4">Showing Activity</h3>
+          <div className="grid grid-cols-3 gap-2 mb-3">
+            <div className="bg-white border border-gray-100 rounded-xl px-3 py-3">
+              <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">Showings</p>
+              <p className="text-2xl font-bold text-gray-900">{buyerShowings.length}</p>
             </div>
-            <div className="bg-white border border-gray-100 rounded-xl p-4">
-              <ActivitySummaryChart data={activitySummaryData} />
+            <div className="bg-white border border-gray-100 rounded-xl px-3 py-3">
+              <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">Previews</p>
+              <p className="text-2xl font-bold text-gray-900">{agentPreviews.length}</p>
+            </div>
+            <div className="bg-white border border-gray-100 rounded-xl px-3 py-3">
+              <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">OH Groups</p>
+              <p className="text-2xl font-bold text-gray-900">{totalOpenHouseGroups}</p>
+            </div>
+            <div className="bg-white border border-gray-100 rounded-xl px-3 py-3">
+              <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">Disclosures</p>
+              <p className="text-2xl font-bold text-gray-900">{disclosureRequests}</p>
+            </div>
+            <div className="bg-white border border-gray-100 rounded-xl px-3 py-3">
+              <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">Online Views</p>
+              <p className="text-2xl font-bold text-gray-900">{showPlatformViews && latestView ? totalPlatformViews.toLocaleString() : "—"}</p>
+            </div>
+            <div className="bg-white border border-gray-100 rounded-xl px-3 py-3">
+              <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">Last 7 Days</p>
+              <p className="text-2xl font-bold text-gray-900">{showingsLast7}</p>
             </div>
           </div>
+          <div className="bg-white border border-gray-100 rounded-xl p-4">
+            <ActivitySummaryChart data={activitySummaryData} />
+          </div>
+        </section>
 
-          {/* Platform Views - right */}
-          {showPlatformViews && (
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-4">Online Views</h3>
-              {latestView && (
-                <div className="flex flex-wrap gap-x-5 gap-y-1 mb-3">
-                  {listing.zillow_visible && (
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-1.5 h-1.5 rounded-full bg-[#006AFF]" />
-                      <span className="text-xs text-gray-400 uppercase">Zillow</span>
-                      <span className="text-sm font-bold text-gray-900">{latestView.zillow_views?.toLocaleString() ?? "--"}</span>
-                    </div>
-                  )}
-                  {listing.redfin_visible && (
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-1.5 h-1.5 rounded-full bg-[#A02021]" />
-                      <span className="text-xs text-gray-400 uppercase">Redfin</span>
-                      <span className="text-sm font-bold text-gray-900">{latestView.redfin_views?.toLocaleString() ?? "--"}</span>
-                    </div>
-                  )}
-                  {listing.realtor_visible && (
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-1.5 h-1.5 rounded-full bg-[#D92228]" />
-                      <span className="text-xs text-gray-400 uppercase">Realtor.com</span>
-                      <span className="text-sm font-bold text-gray-900">{latestView.realtor_views?.toLocaleString() ?? "--"}</span>
-                    </div>
-                  )}
-                  {listing.compass_visible && (
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-1.5 h-1.5 rounded-full bg-[#000000]" />
-                      <span className="text-xs text-gray-400 uppercase">Compass</span>
-                      <span className="text-sm font-bold text-gray-900">{latestView.compass_views?.toLocaleString() ?? "--"}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="bg-white border border-gray-100 rounded-xl p-4">
-                <PlatformViewsChart
-                  data={views.map(
-                    (v: {
-                      date: string;
-                      zillow_views: number | null;
-                      redfin_views: number | null;
-                      realtor_views: number | null;
-                      compass_views: number | null;
-                    }) => ({
-                      date: v.date,
-                      zillow_views: v.zillow_views,
-                      redfin_views: v.redfin_views,
-                      realtor_views: v.realtor_views,
-                      compass_views: v.compass_views,
-                    })
-                  )}
-                  zillowVisible={listing.zillow_visible ?? false}
-                  redfinVisible={listing.redfin_visible ?? false}
-                  realtorVisible={listing.realtor_visible ?? false}
-                  compassVisible={listing.compass_visible ?? false}
-                />
+        {/* ── Platform Views ──────────────────────────────── */}
+        {showPlatformViews && (
+          <section className="mb-10">
+            <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-4">Online Views</h3>
+            {latestView && (
+              <div className="flex flex-wrap gap-x-5 gap-y-1 mb-3">
+                {listing.zillow_visible && (
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-[#006AFF]" />
+                    <span className="text-xs text-gray-400 uppercase">Zillow</span>
+                    <span className="text-sm font-bold text-gray-900">{latestView.zillow_views?.toLocaleString() ?? "--"}</span>
+                  </div>
+                )}
+                {listing.redfin_visible && (
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-[#A02021]" />
+                    <span className="text-xs text-gray-400 uppercase">Redfin</span>
+                    <span className="text-sm font-bold text-gray-900">{latestView.redfin_views?.toLocaleString() ?? "--"}</span>
+                  </div>
+                )}
+                {listing.compass_visible && (
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-[#000000]" />
+                    <span className="text-xs text-gray-400 uppercase">Compass</span>
+                    <span className="text-sm font-bold text-gray-900">{latestView.compass_views?.toLocaleString() ?? "--"}</span>
+                  </div>
+                )}
               </div>
-              <p className="text-xs text-gray-400 mt-2 leading-relaxed">
-                Online view counts are provided for informational purposes only and should not be fully relied upon. These totals are sourced from third-party platforms whose reporting intervals vary — actual figures may not always reflect the most current data.
-              </p>
+            )}
+
+            <div className="bg-white border border-gray-100 rounded-xl p-4">
+              <PlatformViewsChart
+                data={views.map(
+                  (v: {
+                    date: string;
+                    zillow_views: number | null;
+                    redfin_views: number | null;
+                    compass_views: number | null;
+                  }) => ({
+                    date: v.date,
+                    zillow_views: v.zillow_views,
+                    redfin_views: v.redfin_views,
+                    compass_views: v.compass_views,
+                  })
+                )}
+                zillowVisible={listing.zillow_visible ?? false}
+                redfinVisible={listing.redfin_visible ?? false}
+                compassVisible={listing.compass_visible ?? false}
+              />
             </div>
-          )}
-        </div>
+            <p className="text-xs text-gray-400 mt-2 leading-relaxed">
+              Online view counts are provided for informational purposes only and should not be fully relied upon. These totals are sourced from third-party platforms whose reporting intervals vary — actual figures may not always reflect the most current data.
+            </p>
+          </section>
+        )}
 
         {/* ── Activity Log ─────────────────────────────────── */}
         <section className="mb-10">

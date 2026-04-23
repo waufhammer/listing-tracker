@@ -17,7 +17,6 @@ interface Listing {
   zillow_visible: boolean;
   redfin_visible: boolean;
   compass_visible: boolean;
-  realtor_visible: boolean;
   platform_views_public: boolean;
   photo_url: string | null;
 }
@@ -44,7 +43,6 @@ interface PlatformView {
   zillow_views: number | null;
   redfin_views: number | null;
   compass_views: number | null;
-  realtor_views: number | null;
 }
 
 type ActivityType = "Buyer Showing" | "Agent Preview" | "Open House";
@@ -167,7 +165,6 @@ export default function ListingDetailPage() {
   const [zillowViewCount, setZillowViewCount] = useState<number | "">("");
   const [redfinViewCount, setRedfinViewCount] = useState<number | "">("");
   const [compassViewCount, setCompassViewCount] = useState<number | "">("");
-  const [realtorViewCount, setRealtorViewCount] = useState<number | "">("");
   const [savingViews, setSavingViews] = useState(false);
   const [editingViewId, setEditingViewId] = useState<string | null>(null);
   const [editViewData, setEditViewData] = useState<Record<string, number | "">>({});
@@ -255,8 +252,7 @@ export default function ListingDetailPage() {
   const totalPlatformViews =
     (latestView?.zillow_views ?? 0) +
     (latestView?.redfin_views ?? 0) +
-    (latestView?.compass_views ?? 0) +
-    (latestView?.realtor_views ?? 0);
+    (latestView?.compass_views ?? 0);
 
   // ── Single entry handlers ──────────────────────────────────────────────
 
@@ -419,7 +415,6 @@ export default function ListingDetailPage() {
     row.zillow_views = zillowViewCount === "" ? null : zillowViewCount;
     row.redfin_views = redfinViewCount === "" ? null : redfinViewCount;
     row.compass_views = compassViewCount === "" ? null : compassViewCount;
-    row.realtor_views = realtorViewCount === "" ? null : realtorViewCount;
 
     const { error } = await supabase.from("platform_views").insert(row);
 
@@ -430,7 +425,6 @@ export default function ListingDetailPage() {
       setZillowViewCount("");
       setRedfinViewCount("");
       setCompassViewCount("");
-      setRealtorViewCount("");
       await fetchViews();
     }
     setSavingViews(false);
@@ -444,7 +438,6 @@ export default function ListingDetailPage() {
       zillow_views: v.zillow_views ?? "",
       redfin_views: v.redfin_views ?? "",
       compass_views: v.compass_views ?? "",
-      realtor_views: v.realtor_views ?? "",
     });
   }
 
@@ -454,7 +447,6 @@ export default function ListingDetailPage() {
       zillow_views: editViewData.zillow_views === "" ? null : editViewData.zillow_views,
       redfin_views: editViewData.redfin_views === "" ? null : editViewData.redfin_views,
       compass_views: editViewData.compass_views === "" ? null : editViewData.compass_views,
-      realtor_views: editViewData.realtor_views === "" ? null : editViewData.realtor_views,
     };
 
     const { error } = await supabase.from("platform_views").update(updates).eq("id", viewId);
@@ -1177,21 +1169,6 @@ export default function ListingDetailPage() {
                       className="w-28 px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
                     />
                   </div>
-                <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">
-                      Realtor Views
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={realtorViewCount}
-                      onChange={(e) =>
-                        setRealtorViewCount(e.target.value === "" ? "" : parseInt(e.target.value))
-                      }
-                      placeholder="Cumulative"
-                      className="w-28 px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
-                    />
-                  </div>
                 <button
                   type="submit"
                   disabled={savingViews}
@@ -1216,7 +1193,6 @@ export default function ListingDetailPage() {
                       <th className="px-6 py-3 font-medium">Zillow</th>
                       <th className="px-6 py-3 font-medium">Redfin</th>
                       <th className="px-6 py-3 font-medium">Compass</th>
-                      <th className="px-6 py-3 font-medium">Realtor</th>
                       <th className="px-6 py-3 font-medium w-28"></th>
                     </tr>
                   </thead>
@@ -1245,13 +1221,6 @@ export default function ListingDetailPage() {
                               <input type="number" min="0" value={editViewData.compass_views} onChange={(e) => setEditViewData({ ...editViewData, compass_views: e.target.value === "" ? "" : parseInt(e.target.value) })} className="w-24 px-2 py-1 border border-gray-300 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600" />
                             ) : (
                               <span className="text-gray-700">{v.compass_views ?? "--"}</span>
-                            )}
-                          </td>
-                        <td className="px-6 py-3">
-                            {isEditing ? (
-                              <input type="number" min="0" value={editViewData.realtor_views} onChange={(e) => setEditViewData({ ...editViewData, realtor_views: e.target.value === "" ? "" : parseInt(e.target.value) })} className="w-24 px-2 py-1 border border-gray-300 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600" />
-                            ) : (
-                              <span className="text-gray-700">{v.realtor_views ?? "--"}</span>
                             )}
                           </td>
                         <td className="px-6 py-3 text-right">

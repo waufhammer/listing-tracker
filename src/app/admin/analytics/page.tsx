@@ -21,14 +21,12 @@ interface Listing {
   status: string;
   zillow_visible: boolean;
   redfin_visible: boolean;
-  realtor_visible: boolean;
 }
 
 interface PlatformView {
   view_date: string;
   zillow_views: number | null;
   redfin_views: number | null;
-  realtor_views: number | null;
 }
 
 interface ActivityEntry {
@@ -123,7 +121,7 @@ export default function AnalyticsPage() {
     const [listingsRes, activityRes] = await Promise.all([
       supabase
         .from("listings")
-        .select("id, property_address, status, zillow_visible, redfin_visible, realtor_visible")
+        .select("id, property_address, status, zillow_visible, redfin_visible")
         .order("property_address"),
       supabase.from("activity_entries").select("activity_type"),
     ]);
@@ -158,7 +156,7 @@ export default function AnalyticsPage() {
     const [viewsRes, activityRes] = await Promise.all([
       supabase
         .from("platform_views")
-        .select("view_date, zillow_views, redfin_views, realtor_views")
+        .select("view_date, zillow_views, redfin_views")
         .eq("listing_id", listingId)
         .order("view_date", { ascending: true }),
       supabase
@@ -203,9 +201,6 @@ export default function AnalyticsPage() {
     }),
     ...(selectedListing?.redfin_visible !== false && {
       Redfin: entry.redfin_views ?? 0,
-    }),
-    ...(selectedListing?.realtor_visible !== false && {
-      "Realtor.com": entry.realtor_views ?? 0,
     }),
   }));
 
@@ -298,16 +293,6 @@ export default function AnalyticsPage() {
                       stroke="#A02021"
                       strokeWidth={2}
                       dot={{ r: 3, fill: "#A02021" }}
-                      activeDot={{ r: 5 }}
-                    />
-                  )}
-                  {selectedListing?.realtor_visible !== false && (
-                    <Line
-                      type="monotone"
-                      dataKey="Realtor.com"
-                      stroke="#D92228"
-                      strokeWidth={2}
-                      dot={{ r: 3, fill: "#D92228" }}
                       activeDot={{ r: 5 }}
                     />
                   )}

@@ -15,7 +15,6 @@ interface PlatformViewEntry {
   date: string;
   zillow_views: number | null;
   redfin_views: number | null;
-  realtor_views: number | null;
   compass_views: number | null;
 }
 
@@ -23,18 +22,12 @@ interface PlatformViewsChartProps {
   data: PlatformViewEntry[];
   zillowVisible: boolean;
   redfinVisible: boolean;
-  realtorVisible: boolean;
   compassVisible: boolean;
 }
 
 const platformConfig = {
   zillow: { key: "zillow_views" as const, color: "#006AFF", label: "Zillow" },
   redfin: { key: "redfin_views" as const, color: "#A02021", label: "Redfin" },
-  realtor: {
-    key: "realtor_views" as const,
-    color: "#D92228",
-    label: "Realtor.com",
-  },
   compass: { key: "compass_views" as const, color: "#000000", label: "Compass" },
 };
 
@@ -47,7 +40,6 @@ export default function PlatformViewsChart({
   data,
   zillowVisible,
   redfinVisible,
-  realtorVisible,
   compassVisible,
 }: PlatformViewsChartProps) {
   if (data.length === 0) {
@@ -61,13 +53,11 @@ export default function PlatformViewsChart({
   // Carry forward last known value when a platform has null for a given date
   let lastZillow = 0;
   let lastRedfin = 0;
-  let lastRealtor = 0;
   let lastCompass = 0;
 
   const chartData = data.map((entry) => {
     if (entry.zillow_views != null) lastZillow = entry.zillow_views;
     if (entry.redfin_views != null) lastRedfin = entry.redfin_views;
-    if (entry.realtor_views != null) lastRealtor = entry.realtor_views;
     if (entry.compass_views != null) lastCompass = entry.compass_views;
 
     return {
@@ -75,7 +65,6 @@ export default function PlatformViewsChart({
       rawDate: entry.date,
       ...(zillowVisible && { Zillow: lastZillow }),
       ...(redfinVisible && { Redfin: lastRedfin }),
-      ...(realtorVisible && { "Realtor.com": lastRealtor }),
       ...(compassVisible && { Compass: lastCompass }),
     };
   });
@@ -83,7 +72,6 @@ export default function PlatformViewsChart({
   const visiblePlatforms = [
     ...(zillowVisible ? [platformConfig.zillow] : []),
     ...(redfinVisible ? [platformConfig.redfin] : []),
-    ...(realtorVisible ? [platformConfig.realtor] : []),
     ...(compassVisible ? [platformConfig.compass] : []),
   ];
 
