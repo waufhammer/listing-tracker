@@ -26,14 +26,14 @@ interface Listing {
 }
 
 interface PlatformView {
-  view_date: string;
+  date: string;
   zillow_views: number | null;
   redfin_views: number | null;
 }
 
 interface ActivityEntry {
-  activity_date: string;
-  activity_type: string;
+  date: string;
+  type: string;
 }
 
 // --- Stat Card ---
@@ -127,26 +127,26 @@ export default function AnalyticsPage() {
         .from("listings")
         .select("id, property_address, status, zillow_visible, redfin_visible")
         .order("property_address"),
-      supabase.from("activity_entries").select("activity_type"),
+      supabase.from("activity_entries").select("type"),
     ]);
 
     const allListings: Listing[] = listingsRes.data || [];
-    const allActivity: { activity_type: string }[] = activityRes.data || [];
+    const allActivity: { type: string }[] = activityRes.data || [];
 
     setListings(allListings);
-    setActiveCount(allListings.filter((l) => l.status === "Active").length);
+    setActiveCount(allListings.filter((l) => l.status === "active").length);
     setShowingCount(
-      allActivity.filter((a) => a.activity_type === "Buyer Showing").length
+      allActivity.filter((a) => a.type === "buyer_showing").length
     );
     setPreviewCount(
-      allActivity.filter((a) => a.activity_type === "Agent Preview").length
+      allActivity.filter((a) => a.type === "agent_preview").length
     );
     setOpenHouseCount(
-      allActivity.filter((a) => a.activity_type === "Open House").length
+      allActivity.filter((a) => a.type === "open_house").length
     );
 
     // Auto-select first active listing if available
-    const firstActive = allListings.find((l) => l.status === "Active");
+    const firstActive = allListings.find((l) => l.status === "active");
     if (firstActive) {
       setSelectedListingId(firstActive.id);
     } else if (allListings.length > 0) {
@@ -160,14 +160,14 @@ export default function AnalyticsPage() {
     const [viewsRes, activityRes, pageViewsRes] = await Promise.all([
       supabase
         .from("platform_views")
-        .select("view_date, zillow_views, redfin_views")
+        .select("date, zillow_views, redfin_views")
         .eq("listing_id", listingId)
-        .order("view_date", { ascending: true }),
+        .order("date", { ascending: true }),
       supabase
         .from("activity_entries")
-        .select("activity_date, activity_type")
+        .select("date, type")
         .eq("listing_id", listingId)
-        .order("activity_date", { ascending: true }),
+        .order("date", { ascending: true }),
       supabase
         .from("page_views")
         .select("viewed_at")
@@ -190,13 +190,13 @@ export default function AnalyticsPage() {
     > = {};
 
     activityData.forEach((entry) => {
-      const week = getWeekLabel(entry.activity_date);
+      const week = getWeekLabel(entry.date);
       if (!weekMap[week]) {
         weekMap[week] = { week, Showings: 0, Previews: 0, "Open Houses": 0 };
       }
-      if (entry.activity_type === "Buyer Showing") weekMap[week].Showings++;
-      else if (entry.activity_type === "Agent Preview") weekMap[week].Previews++;
-      else if (entry.activity_type === "Open House")
+      if (entry.type === "buyer_showing") weekMap[week].Showings++;
+      else if (entry.type === "agent_preview") weekMap[week].Previews++;
+      else if (entry.type === "open_house")
         weekMap[week]["Open Houses"]++;
     });
 
@@ -218,7 +218,7 @@ export default function AnalyticsPage() {
 
   // --- Build platform views chart data ---
   const viewsChartData = viewsData.map((entry) => ({
-    date: formatDate(entry.view_date),
+    date: formatDate(entry.date),
     ...(selectedListing?.zillow_visible !== false && {
       Zillow: entry.zillow_views ?? 0,
     }),
@@ -270,7 +270,7 @@ export default function AnalyticsPage() {
       {selectedListingId && (
         <div className="space-y-8">
           {/* Client Page Views Chart */}
-          {selectedListing?.status === "Active" && (
+          {selectedListing?.status === "active" && (
             <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
               <h3 className="text-lg font-medium text-gray-900 mb-4">
                 Client Page Views
