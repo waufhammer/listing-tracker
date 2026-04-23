@@ -7,6 +7,8 @@ import {
   Line,
   BarChart,
   Bar,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -97,6 +99,7 @@ export default function AnalyticsPage() {
   // Chart data
   const [viewsData, setViewsData] = useState<PlatformView[]>([]);
   const [activityData, setActivityData] = useState<ActivityEntry[]>([]);
+  const [pageViewsData, setPageViewsData] = useState<{viewed_at: string}[]>([]);
 
   useEffect(() => {
     fetchListingsAndStats();
@@ -111,6 +114,7 @@ export default function AnalyticsPage() {
       setSelectedListing(null);
       setViewsData([]);
       setActivityData([]);
+      setPageViewsData([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedListingId]);
@@ -153,7 +157,7 @@ export default function AnalyticsPage() {
   }
 
   async function fetchListingChartData(listingId: string) {
-    const [viewsRes, activityRes] = await Promise.all([
+    const [viewsRes, activityRes, pageViewsRes] = await Promise.all([
       supabase
         .from("platform_views")
         .select("view_date, zillow_views, redfin_views")
@@ -164,10 +168,16 @@ export default function AnalyticsPage() {
         .select("activity_date, activity_type")
         .eq("listing_id", listingId)
         .order("activity_date", { ascending: true }),
+      supabase
+        .from("page_views")
+        .select("viewed_at")
+        .eq("listing_id", listingId)
+        .order("viewed_at", { ascending: true }),
     ]);
 
     setViewsData(viewsRes.data || []);
     setActivityData(activityRes.data || []);
+    setPageViewsData(pageViewsRes.data || []);
   }
 
   // --- Build weekly activity chart data ---
@@ -191,6 +201,19 @@ export default function AnalyticsPage() {
     });
 
     return Object.values(weekMap);
+  })();
+
+  // --- Build page views chart data ---
+  const pageViewsChartData = (() => {
+    if (pageViewsData.length === 0) return [];
+    const dayMap: Record<string, number> = {};
+    pageViewsData.forEach((pv) => {
+      const day = pv.viewed_at.split("T")[0];
+      dayMap[day] = (dayMap[day] || 0) + 1;
+    });
+    return Object.entries(dayMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, count]) => ({ date: formatDate(date), Views: count }));
   })();
 
   // --- Build platform views chart data ---
@@ -246,6 +269,50 @@ export default function AnalyticsPage() {
 
       {selectedListingId && (
         <div className="space-y-8">
+          {/* Client Page Views Chart */}
+          {selectedListing?.status === "Active" && (
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">
+                Client Page Views
+              </h3>
+              {pageViewsChartData.length === 0 ? (
+                <div className="flex items-center justify-center h-48 text-gray-400 text-sm">
+                  No page view data for this listing
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={320}>
+                  <AreaChart
+                    data={pageViewsChartData}
+                    margin={{ top: 8, right: 16, left: 0, bottom: 8 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis
+                      dataKey="date"
+                      tick={axisTickStyle}
+                      tickLine={false}
+                      axisLine={{ stroke: "#e5e7eb" }}
+                    />
+                    <YAxis
+                      tick={axisTickStyle}
+                      tickLine={false}
+                      axisLine={{ stroke: "#e5e7eb" }}
+                      allowDecimals={false}
+                    />
+                    <Tooltip contentStyle={tooltipStyle} />
+                    <Area
+                      type="monotone"
+                      dataKey="Views"
+                      stroke="#8B5CF6"
+                      fill="#8B5CF6"
+                      fillOpacity={0.15}
+                      strokeWidth={2}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          )}
+
           {/* Platform Views Chart */}
           <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
             <h3 className="text-lg font-medium text-gray-900 mb-4">

@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase";
 import PlatformViewsChart from "@/components/PlatformViewsChart";
 import ActivitySummaryChart from "@/components/ActivitySummaryChart";
 import ActivityLog from "@/components/ActivityLog";
+import PageViewTracker from "@/components/PageViewTracker";
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
@@ -168,6 +169,7 @@ export default async function ClientDashboardPage({
 
   return (
     <div>
+      <PageViewTracker listingId={listing.id} />
       {/* ── Header ───────────────────────────────────────────── */}
       <div className="mb-10">
         {/* Logo */}
@@ -241,7 +243,7 @@ export default async function ClientDashboardPage({
               <p className="text-2xl font-bold text-gray-900">{agentPreviews.length}</p>
             </div>
             <div className="bg-white border border-gray-100 rounded-xl px-3 py-3">
-              <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">OH Groups</p>
+              <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">Open House Groups</p>
               <p className="text-2xl font-bold text-gray-900">{totalOpenHouseGroups}</p>
             </div>
             <div className="bg-white border border-gray-100 rounded-xl px-3 py-3">
