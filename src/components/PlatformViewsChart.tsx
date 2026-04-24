@@ -20,6 +20,7 @@ interface PlatformViewEntry {
 
 interface PlatformViewsChartProps {
   data: PlatformViewEntry[];
+  listDate?: string;
   zillowVisible?: boolean;
   redfinVisible?: boolean;
   compassVisible?: boolean;
@@ -38,6 +39,7 @@ function formatDate(dateStr: string) {
 
 export default function PlatformViewsChart({
   data,
+  listDate,
   zillowVisible,
   redfinVisible,
   compassVisible,
@@ -50,17 +52,23 @@ export default function PlatformViewsChart({
     );
   }
 
+  // Prepend a zero entry on list date if the earliest data is after it
+  const effectiveData =
+    listDate && (data.length === 0 || data[0].date > listDate)
+      ? [{ date: listDate, zillow_views: 0, redfin_views: 0, compass_views: 0 }, ...data]
+      : data;
+
   // Auto-detect which platforms have data (if visibility props not provided)
-  const showZillow = zillowVisible ?? data.some((d) => d.zillow_views != null);
-  const showRedfin = redfinVisible ?? data.some((d) => d.redfin_views != null);
-  const showCompass = compassVisible ?? data.some((d) => d.compass_views != null);
+  const showZillow = zillowVisible ?? effectiveData.some((d) => d.zillow_views != null);
+  const showRedfin = redfinVisible ?? effectiveData.some((d) => d.redfin_views != null);
+  const showCompass = compassVisible ?? effectiveData.some((d) => d.compass_views != null);
 
   // Carry forward last known value when a platform has null for a given date
   let lastZillow = 0;
   let lastRedfin = 0;
   let lastCompass = 0;
 
-  const chartData = data.map((entry) => {
+  const chartData = effectiveData.map((entry) => {
     if (entry.zillow_views != null) lastZillow = entry.zillow_views;
     if (entry.redfin_views != null) lastRedfin = entry.redfin_views;
     if (entry.compass_views != null) lastCompass = entry.compass_views;

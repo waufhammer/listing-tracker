@@ -309,6 +309,7 @@ export default async function ClientDashboardPage({
                     compass_views: v.compass_views,
                   })
                 )}
+                listDate={listing.list_date ?? undefined}
               />
             </div>
             <p className="text-xs text-gray-400 mt-2 leading-relaxed">
