@@ -20,9 +20,9 @@ interface PlatformViewEntry {
 
 interface PlatformViewsChartProps {
   data: PlatformViewEntry[];
-  zillowVisible: boolean;
-  redfinVisible: boolean;
-  compassVisible: boolean;
+  zillowVisible?: boolean;
+  redfinVisible?: boolean;
+  compassVisible?: boolean;
 }
 
 const platformConfig = {
@@ -50,6 +50,11 @@ export default function PlatformViewsChart({
     );
   }
 
+  // Auto-detect which platforms have data (if visibility props not provided)
+  const showZillow = zillowVisible ?? data.some((d) => d.zillow_views != null);
+  const showRedfin = redfinVisible ?? data.some((d) => d.redfin_views != null);
+  const showCompass = compassVisible ?? data.some((d) => d.compass_views != null);
+
   // Carry forward last known value when a platform has null for a given date
   let lastZillow = 0;
   let lastRedfin = 0;
@@ -63,16 +68,16 @@ export default function PlatformViewsChart({
     return {
       date: formatDate(entry.date),
       rawDate: entry.date,
-      ...(zillowVisible && { Zillow: lastZillow }),
-      ...(redfinVisible && { Redfin: lastRedfin }),
-      ...(compassVisible && { Compass: lastCompass }),
+      ...(showZillow && { Zillow: lastZillow }),
+      ...(showRedfin && { Redfin: lastRedfin }),
+      ...(showCompass && { Compass: lastCompass }),
     };
   });
 
   const visiblePlatforms = [
-    ...(zillowVisible ? [platformConfig.zillow] : []),
-    ...(redfinVisible ? [platformConfig.redfin] : []),
-    ...(compassVisible ? [platformConfig.compass] : []),
+    ...(showZillow ? [platformConfig.zillow] : []),
+    ...(showRedfin ? [platformConfig.redfin] : []),
+    ...(showCompass ? [platformConfig.compass] : []),
   ];
 
   return (

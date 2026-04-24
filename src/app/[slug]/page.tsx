@@ -270,21 +270,21 @@ export default async function ClientDashboardPage({
             <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-4">Online Views</h3>
             {latestView && (
               <div className="flex flex-wrap gap-x-5 gap-y-1 mb-3">
-                {listing.zillow_visible && (
+                {views.some((v: { zillow_views: number | null }) => v.zillow_views != null) && (
                   <div className="flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-[#006AFF]" />
                     <span className="text-xs text-gray-400 uppercase">Zillow</span>
                     <span className="text-sm font-bold text-gray-900">{latestView.zillow_views?.toLocaleString() ?? "--"}</span>
                   </div>
                 )}
-                {listing.redfin_visible && (
+                {views.some((v: { redfin_views: number | null }) => v.redfin_views != null) && (
                   <div className="flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-[#A02021]" />
                     <span className="text-xs text-gray-400 uppercase">Redfin</span>
                     <span className="text-sm font-bold text-gray-900">{latestView.redfin_views?.toLocaleString() ?? "--"}</span>
                   </div>
                 )}
-                {listing.compass_visible && (
+                {views.some((v: { compass_views: number | null }) => v.compass_views != null) && (
                   <div className="flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-[#000000]" />
                     <span className="text-xs text-gray-400 uppercase">Compass</span>
@@ -309,9 +309,6 @@ export default async function ClientDashboardPage({
                     compass_views: v.compass_views,
                   })
                 )}
-                zillowVisible={listing.zillow_visible ?? false}
-                redfinVisible={listing.redfin_visible ?? false}
-                compassVisible={listing.compass_visible ?? false}
               />
             </div>
             <p className="text-xs text-gray-400 mt-2 leading-relaxed">
