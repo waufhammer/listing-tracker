@@ -271,7 +271,7 @@ export default function AnalyticsPage() {
         <div className="space-y-8">
           {/* Client Page Views Chart */}
           {selectedListing?.status === "active" && (
-            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4 sm:p-6">
               <h3 className="text-lg font-medium text-gray-900 mb-4">
                 Client Page Views
               </h3>
@@ -280,7 +280,7 @@ export default function AnalyticsPage() {
                   No page view data for this listing
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height={320}>
+                <ResponsiveContainer width="100%" height={260}>
                   <AreaChart
                     data={pageViewsChartData}
                     margin={{ top: 8, right: 16, left: 0, bottom: 8 }}
@@ -314,7 +314,7 @@ export default function AnalyticsPage() {
           )}
 
           {/* Platform Views Chart */}
-          <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+          <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4 sm:p-6">
             <h3 className="text-lg font-medium text-gray-900 mb-4">
               Platform Views Over Time
             </h3>
@@ -323,7 +323,7 @@ export default function AnalyticsPage() {
                 No view data for this listing
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={320}>
+              <ResponsiveContainer width="100%" height={260}>
                 <LineChart
                   data={viewsChartData}
                   margin={{ top: 8, right: 16, left: 0, bottom: 8 }}
@@ -369,7 +369,7 @@ export default function AnalyticsPage() {
           </div>
 
           {/* Activity Trends Chart */}
-          <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+          <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4 sm:p-6">
             <h3 className="text-lg font-medium text-gray-900 mb-4">
               Weekly Activity
             </h3>
@@ -378,7 +378,7 @@ export default function AnalyticsPage() {
                 No activity data for this listing
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={320}>
+              <ResponsiveContainer width="100%" height={260}>
                 <BarChart
                   data={weeklyActivity}
                   margin={{ top: 8, right: 16, left: 0, bottom: 8 }}

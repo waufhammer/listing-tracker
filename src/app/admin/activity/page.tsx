@@ -402,64 +402,50 @@ function ActivityEntryContent() {
             </div>
           )}
 
-          {/* Entries table */}
+          {/* Entries list */}
           <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
+            <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-medium text-gray-900">
                 Activity Entries
               </h3>
             </div>
             {loading ? (
-              <div className="px-6 py-8 text-center text-gray-500">
+              <div className="px-4 sm:px-6 py-8 text-center text-gray-500">
                 Loading...
               </div>
             ) : entries.length === 0 ? (
-              <div className="px-6 py-8 text-center text-gray-500">
+              <div className="px-4 sm:px-6 py-8 text-center text-gray-500">
                 No activity entries yet.
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 text-left text-gray-600">
-                    <tr>
-                      <th className="px-6 py-3 font-medium">Date</th>
-                      <th className="px-6 py-3 font-medium">Type</th>
-                      <th className="px-6 py-3 font-medium">Agent</th>
-                      <th className="px-6 py-3 font-medium">Repeat</th>
-                      <th className="px-6 py-3 font-medium"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {entries.map((entry) => (
-                      <tr key={entry.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-3 text-gray-900">
-                          {entry.date}
-                        </td>
-                        <td className="px-6 py-3 text-gray-900">
-                          {entry.type}
-                        </td>
-                        <td className="px-6 py-3 text-gray-900">
-                          {entry.agent_name || (entry.type === "Open House" ? `${entry.open_house_groups ?? 0} groups` : "-")}
-                        </td>
-                        <td className="px-6 py-3">
-                          {entry.is_repeat_visit && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
-                              Repeat
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-6 py-3">
-                          <Link
-                            href={`/admin/activity/${entry.id}/edit`}
-                            className="text-green-600 hover:text-green-800 font-medium"
-                          >
-                            Edit
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="divide-y divide-gray-100">
+                {entries.map((entry) => (
+                  <div key={entry.id} className="px-4 sm:px-6 py-3 text-sm hover:bg-gray-50">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-medium text-gray-900 whitespace-nowrap">{entry.type}</span>
+                        {entry.is_repeat_visit && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                            Repeat
+                          </span>
+                        )}
+                      </div>
+                      <Link
+                        href={`/admin/activity/${entry.id}/edit`}
+                        className="text-green-600 hover:text-green-800 font-medium text-xs shrink-0 ml-2"
+                      >
+                        Edit
+                      </Link>
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-600 mt-0.5">
+                      <span>{entry.date}</span>
+                      <span className="text-gray-300">|</span>
+                      <span className="truncate">
+                        {entry.agent_name || (entry.type === "open_house" ? `${entry.open_house_groups ?? 0} groups` : "-")}
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>

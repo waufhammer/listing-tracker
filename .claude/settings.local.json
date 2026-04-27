@@ -36,7 +36,27 @@
       "Bash(cp \"/Users/waufhammer/Desktop/Logo Final/For Screen/Monogram+Type/Horizontal/2021_09_AufhammerHomes_Logo_RGB_Monogram+Type_Horiz_Black.png\" /Users/waufhammer/listing-tracker/public/logo-horiz-black.png)",
       "Bash(sudo chown:*)",
       "Bash(brew install:*)",
-      "Bash(/opt/homebrew/bin/brew install:*)"
+      "Bash(/opt/homebrew/bin/brew install:*)",
+      "Bash(vercel --version)",
+      "Bash(vercel inspect:*)",
+      "Bash(vercel ls:*)",
+      "Bash(vercel env:*)",
+      "Bash(vercel link:*)",
+      "Bash(vercel --prod)",
+      "Bash(npx create-next-app@latest cma-builder --typescript --tailwind --eslint --app --src-dir --no-turbopack --import-alias \"@/*\")",
+      "Bash(rm:*)",
+      "Bash(rm -rf /Users/waufhammer/cma-builder)",
+      "Bash(npm_config_cache=/tmp/npm-cache npx create-next-app@latest cma-builder --typescript --tailwind --eslint --app --src-dir --no-turbopack --import-alias \"@/*\")",
+      "Bash(npm_config_cache=/tmp/npm-cache npm install @supabase/supabase-js recharts pdf-parse papaparse)",
+      "Bash(npm_config_cache=/tmp/npm-cache npm install -D @types/pdf-parse @types/papaparse)",
+      "Bash(npm_config_cache=/tmp/npm-cache npm run build)",
+      "Bash(npm_config_cache=/tmp/npm-cache npm uninstall pdf-parse @types/pdf-parse)",
+      "Bash(npm_config_cache=/tmp/npm-cache npm install pdf-parse@1.1.1)",
+      "Bash(git rm:*)",
+      "Bash(gh repo:*)",
+      "Bash(npm_config_cache=/tmp/npm-cache npx --yes gh-pages --version)",
+      "Bash(git config:*)",
+      "Bash(git rebase:*)"
     ]
   }
 }

@@ -79,30 +79,6 @@ const statusColor: Record<string, string> = {
   sold: "bg-gray-100 text-gray-800",
 };
 
-// ── Bulk row type ────────────────────────────────────────────────────────────
-
-interface BulkRow {
-  key: number;
-  activityType: ActivityType;
-  activityDate: string;
-  agentName: string;
-  openHouseGroups: number | "";
-  feedback: string;
-}
-
-let bulkNextKey = 1;
-
-function createEmptyBulkRow(): BulkRow {
-  return {
-    key: bulkNextKey++,
-    activityType: "Buyer Showing",
-    activityDate: new Date().toISOString().split("T")[0],
-    agentName: "",
-    openHouseGroups: "",
-    feedback: "",
-  };
-}
-
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function daysOnMarket(listDate: string | null): number | null {
@@ -135,7 +111,6 @@ export default function ListingDetailPage() {
 
   // ── Section collapse state ─────────────────────────────────────────────
   const [showAddEntry, setShowAddEntry] = useState(false);
-  const [showBulkEntry, setShowBulkEntry] = useState(false);
   const [showEditListing, setShowEditListing] = useState(false);
 
   // ── Single activity entry form ─────────────────────────────────────────
@@ -153,12 +128,6 @@ export default function ListingDetailPage() {
   const [savingSingle, setSavingSingle] = useState(false);
   const [singleError, setSingleError] = useState("");
   const [repeatBanner, setRepeatBanner] = useState(false);
-
-  // ── Bulk entry ─────────────────────────────────────────────────────────
-  const [bulkRows, setBulkRows] = useState<BulkRow[]>([createEmptyBulkRow()]);
-  const [savingBulk, setSavingBulk] = useState(false);
-  const [bulkError, setBulkError] = useState("");
-  const [bulkSavedCount, setBulkSavedCount] = useState<number | null>(null);
 
   // ── Platform views form ────────────────────────────────────────────────
   const [viewDate, setViewDate] = useState(new Date().toISOString().split("T")[0]);
@@ -331,75 +300,6 @@ export default function ListingDetailPage() {
       await fetchEntries();
     }
     setSavingSingle(false);
-  }
-
-  // ── Bulk entry handlers ────────────────────────────────────────────────
-
-  function updateBulkRow(key: number, updates: Partial<BulkRow>) {
-    setBulkRows((prev) =>
-      prev.map((r) => (r.key === key ? { ...r, ...updates } : r))
-    );
-  }
-
-  function removeBulkRow(key: number) {
-    setBulkRows((prev) => {
-      const next = prev.filter((r) => r.key !== key);
-      return next.length === 0 ? [createEmptyBulkRow()] : next;
-    });
-  }
-
-  function addBulkRow() {
-    const last = bulkRows[bulkRows.length - 1];
-    setBulkRows((prev) => [
-      ...prev,
-      {
-        ...createEmptyBulkRow(),
-        activityDate: last?.activityDate ?? new Date().toISOString().split("T")[0],
-        activityType: last?.activityType ?? "Buyer Showing",
-      },
-    ]);
-  }
-
-  async function handleBulkSubmit() {
-    setSavingBulk(true);
-    setBulkError("");
-    setBulkSavedCount(null);
-
-    const valid = bulkRows.every((r) => r.activityDate);
-    if (!valid) {
-      setBulkError("Every row needs a date.");
-      setSavingBulk(false);
-      return;
-    }
-
-    const payload = bulkRows.map((r) => {
-      const entry: Record<string, unknown> = {
-        listing_id: id,
-        date: r.activityDate,
-        type: activityTypeToDb[r.activityType],
-      };
-      if (r.activityType === "Open House") {
-        entry.open_house_groups = r.openHouseGroups === "" ? null : r.openHouseGroups;
-      } else {
-        entry.agent_name = r.agentName || null;
-      }
-      if (r.feedback.trim()) {
-        entry.raw_feedback = r.feedback.trim();
-        entry.display_feedback = r.feedback.trim();
-      }
-      return entry;
-    });
-
-    const { error } = await supabase.from("activity_entries").insert(payload);
-
-    if (error) {
-      setBulkError(error.message);
-    } else {
-      setBulkSavedCount(payload.length);
-      setBulkRows([createEmptyBulkRow()]);
-      await fetchEntries();
-    }
-    setSavingBulk(false);
   }
 
   // ── Platform views handler ─────────────────────────────────────────────
@@ -644,7 +544,7 @@ export default function ListingDetailPage() {
       ════════════════════════════════════════════════════════════════════ */}
       <section className="mb-8">
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200">
+          <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900">
               Activity and Feedback
             </h2>
@@ -664,63 +564,122 @@ export default function ListingDetailPage() {
                 return (
                   <div
                     key={entry.id}
-                    className="px-6 py-3 flex items-center gap-3 text-sm hover:bg-gray-50"
+                    className="px-4 sm:px-6 py-3 text-sm hover:bg-gray-50"
                   >
-                    <span
-                      className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                        typeDotColor[entry.type] ?? "bg-gray-400"
-                      }`}
-                    />
-                    <span className="font-medium text-gray-900 whitespace-nowrap">
-                      {dbTypeToLabel[entry.type] ?? entry.type}
-                    </span>
-                    <span className="text-gray-400">|</span>
-                    <span className="text-gray-700 whitespace-nowrap">
-                      {entry.date}
-                    </span>
-                    <span className="text-gray-400">|</span>
-                    <span className="text-gray-700 truncate">
-                      {entry.agent_name ||
-                        (entry.type === "open_house"
-                          ? `${entry.open_house_groups ?? 0} groups`
-                          : "--")}
-                    </span>
-                    {feedbackExcerpt && (
-                      <>
-                        <span className="text-gray-400">|</span>
-                        <span className="text-gray-500 truncate hidden sm:inline">
-                          {feedbackExcerpt}
-                        </span>
-                      </>
-                    )}
-                    <div className="ml-auto flex items-center gap-2 shrink-0">
-                      {entry.is_repeat_visit && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
-                          Repeat
-                        </span>
+                    {/* Desktop: inline row */}
+                    <div className="hidden sm:flex items-center gap-3">
+                      <span
+                        className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                          typeDotColor[entry.type] ?? "bg-gray-400"
+                        }`}
+                      />
+                      <span className="font-medium text-gray-900 whitespace-nowrap">
+                        {dbTypeToLabel[entry.type] ?? entry.type}
+                      </span>
+                      <span className="text-gray-400">|</span>
+                      <span className="text-gray-700 whitespace-nowrap">
+                        {entry.date}
+                      </span>
+                      <span className="text-gray-400">|</span>
+                      <span className="text-gray-700 truncate">
+                        {entry.agent_name ||
+                          (entry.type === "open_house"
+                            ? `${entry.open_house_groups ?? 0} groups`
+                            : "--")}
+                      </span>
+                      {feedbackExcerpt && (
+                        <>
+                          <span className="text-gray-400">|</span>
+                          <span className="text-gray-500 truncate">
+                            {feedbackExcerpt}
+                          </span>
+                        </>
                       )}
-                      <button
-                        onClick={async () => {
-                          const newVal = !entry.buyer_packet_requested;
-                          await supabase.from("activity_entries").update({ buyer_packet_requested: newVal }).eq("id", entry.id);
-                          await fetchEntries();
-                        }}
-                        className="inline-flex items-center gap-2 cursor-pointer"
-                        title={entry.buyer_packet_requested ? "Click to mark as not sent" : "Click to mark as sent"}
-                      >
-                        <span className={`text-xs font-medium ${entry.buyer_packet_requested ? "text-green-700" : "text-gray-400"}`}>
-                          Buyer Disclosure Package
-                        </span>
-                        <div className={`relative w-8 h-[18px] rounded-full transition-colors ${entry.buyer_packet_requested ? "bg-green-500" : "bg-gray-300"}`}>
-                          <div className={`absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow transition-transform ${entry.buyer_packet_requested ? "left-[16px]" : "left-[2px]"}`} />
+                      <div className="ml-auto flex items-center gap-2 shrink-0">
+                        {entry.is_repeat_visit && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                            Repeat
+                          </span>
+                        )}
+                        <button
+                          onClick={async () => {
+                            const newVal = !entry.buyer_packet_requested;
+                            await supabase.from("activity_entries").update({ buyer_packet_requested: newVal }).eq("id", entry.id);
+                            await fetchEntries();
+                          }}
+                          className="inline-flex items-center gap-2 cursor-pointer"
+                          title={entry.buyer_packet_requested ? "Click to mark as not sent" : "Click to mark as sent"}
+                        >
+                          <span className={`text-xs font-medium ${entry.buyer_packet_requested ? "text-green-700" : "text-gray-400"}`}>
+                            Disclosure Pkg
+                          </span>
+                          <div className={`relative w-8 h-[18px] rounded-full transition-colors ${entry.buyer_packet_requested ? "bg-green-500" : "bg-gray-300"}`}>
+                            <div className={`absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow transition-transform ${entry.buyer_packet_requested ? "left-[16px]" : "left-[2px]"}`} />
+                          </div>
+                        </button>
+                        <Link
+                          href={`/admin/activity/${entry.id}/edit`}
+                          className="text-green-600 hover:text-green-800 font-medium"
+                        >
+                          Edit
+                        </Link>
+                      </div>
+                    </div>
+                    {/* Mobile: stacked card */}
+                    <div className="sm:hidden space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                              typeDotColor[entry.type] ?? "bg-gray-400"
+                            }`}
+                          />
+                          <span className="font-medium text-gray-900">
+                            {dbTypeToLabel[entry.type] ?? entry.type}
+                          </span>
+                          {entry.is_repeat_visit && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                              Repeat
+                            </span>
+                          )}
                         </div>
-                      </button>
-                      <Link
-                        href={`/admin/activity/${entry.id}/edit`}
-                        className="text-green-600 hover:text-green-800 font-medium"
-                      >
-                        Edit
-                      </Link>
+                        <Link
+                          href={`/admin/activity/${entry.id}/edit`}
+                          className="text-green-600 hover:text-green-800 font-medium text-xs"
+                        >
+                          Edit
+                        </Link>
+                      </div>
+                      <div className="flex items-center justify-between text-gray-600">
+                        <span>{entry.date}</span>
+                        <span className="truncate ml-2">
+                          {entry.agent_name ||
+                            (entry.type === "open_house"
+                              ? `${entry.open_house_groups ?? 0} groups`
+                              : "")}
+                        </span>
+                      </div>
+                      {feedbackExcerpt && (
+                        <p className="text-gray-500 text-xs truncate">{feedbackExcerpt}</p>
+                      )}
+                      <div className="flex items-center justify-between">
+                        <button
+                          onClick={async () => {
+                            const newVal = !entry.buyer_packet_requested;
+                            await supabase.from("activity_entries").update({ buyer_packet_requested: newVal }).eq("id", entry.id);
+                            await fetchEntries();
+                          }}
+                          className="inline-flex items-center gap-2 cursor-pointer"
+                          title={entry.buyer_packet_requested ? "Click to mark as not sent" : "Click to mark as sent"}
+                        >
+                          <span className={`text-xs font-medium ${entry.buyer_packet_requested ? "text-green-700" : "text-gray-400"}`}>
+                            Disclosure Pkg
+                          </span>
+                          <div className={`relative w-8 h-[18px] rounded-full transition-colors ${entry.buyer_packet_requested ? "bg-green-500" : "bg-gray-300"}`}>
+                            <div className={`absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow transition-transform ${entry.buyer_packet_requested ? "left-[16px]" : "left-[2px]"}`} />
+                          </div>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -928,163 +887,11 @@ export default function ListingDetailPage() {
       </section>
 
       {/* ════════════════════════════════════════════════════════════════════
-          4. BULK ACTIVITY ENTRY (collapsible)
-      ════════════════════════════════════════════════════════════════════ */}
-      <section className="mb-8">
-        <button
-          onClick={() => {
-            setShowBulkEntry(!showBulkEntry);
-            if (!showBulkEntry) {
-              setBulkError("");
-              setBulkSavedCount(null);
-            }
-          }}
-          className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-3"
-        >
-          <span className={`transition-transform ${showBulkEntry ? "rotate-90" : ""}`}>
-            &#9654;
-          </span>
-          Bulk Activity Entry
-        </button>
-
-        {showBulkEntry && (
-          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-            {bulkSavedCount !== null && (
-              <div className="mx-6 mt-4 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg text-sm">
-                Saved {bulkSavedCount} {bulkSavedCount === 1 ? "entry" : "entries"} successfully.
-              </div>
-            )}
-            {bulkError && (
-              <div className="mx-6 mt-4 bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg text-sm">
-                {bulkError}
-              </div>
-            )}
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 text-left text-gray-600">
-                  <tr>
-                    <th className="px-4 py-3 font-medium w-10">#</th>
-                    <th className="px-4 py-3 font-medium">Type</th>
-                    <th className="px-4 py-3 font-medium">Date</th>
-                    <th className="px-4 py-3 font-medium">Agent / Groups</th>
-                    <th className="px-4 py-3 font-medium">Feedback</th>
-                    <th className="px-4 py-3 font-medium w-16"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {bulkRows.map((row, i) => {
-                    const isAgent =
-                      row.activityType === "Buyer Showing" || row.activityType === "Agent Preview";
-                    return (
-                      <tr key={row.key} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-gray-400">{i + 1}</td>
-                        <td className="px-4 py-3">
-                          <select
-                            value={row.activityType}
-                            onChange={(e) =>
-                              updateBulkRow(row.key, {
-                                activityType: e.target.value as ActivityType,
-                              })
-                            }
-                            className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent text-sm"
-                          >
-                            <option>Buyer Showing</option>
-                            <option>Agent Preview</option>
-                            <option>Open House</option>
-                          </select>
-                        </td>
-                        <td className="px-4 py-3">
-                          <input
-                            type="date"
-                            value={row.activityDate}
-                            onChange={(e) =>
-                              updateBulkRow(row.key, { activityDate: e.target.value })
-                            }
-                            className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent text-sm"
-                          />
-                        </td>
-                        <td className="px-4 py-3">
-                          {isAgent ? (
-                            <input
-                              type="text"
-                              placeholder="Agent name"
-                              value={row.agentName}
-                              onChange={(e) =>
-                                updateBulkRow(row.key, { agentName: e.target.value })
-                              }
-                              className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent text-sm"
-                            />
-                          ) : (
-                            <input
-                              type="number"
-                              min="0"
-                              placeholder="# groups"
-                              value={row.openHouseGroups}
-                              onChange={(e) =>
-                                updateBulkRow(row.key, {
-                                  openHouseGroups:
-                                    e.target.value === "" ? "" : parseInt(e.target.value),
-                                })
-                              }
-                              className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent text-sm"
-                            />
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          <input
-                            type="text"
-                            placeholder="Optional feedback"
-                            value={row.feedback}
-                            onChange={(e) =>
-                              updateBulkRow(row.key, { feedback: e.target.value })
-                            }
-                            className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent text-sm"
-                          />
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <button
-                            onClick={() => removeBulkRow(row.key)}
-                            className="text-gray-400 hover:text-red-500 transition-colors text-lg leading-none"
-                            title="Remove row"
-                          >
-                            &times;
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="px-6 py-4 flex flex-wrap items-center gap-3 border-t border-gray-100">
-              <button
-                onClick={addBulkRow}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md font-medium hover:bg-gray-200 transition-colors text-sm"
-              >
-                + Add Row
-              </button>
-              <button
-                onClick={handleBulkSubmit}
-                disabled={savingBulk || bulkRows.length === 0}
-                className="px-5 py-2 bg-green-600 text-white rounded-md font-medium hover:bg-green-700 disabled:opacity-50 transition-colors text-sm"
-              >
-                {savingBulk
-                  ? "Saving..."
-                  : `Save ${bulkRows.length} ${bulkRows.length === 1 ? "Entry" : "Entries"}`}
-              </button>
-            </div>
-          </div>
-        )}
-      </section>
-
-      {/* ════════════════════════════════════════════════════════════════════
-          5. PLATFORM VIEWS
+          4. PLATFORM VIEWS
       ════════════════════════════════════════════════════════════════════ */}
         <section className="mb-8">
           <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <div className="px-4 sm:px-6 py-4 border-b border-gray-200 flex items-center justify-between gap-3">
               <h2 className="text-lg font-semibold text-gray-900">
                 Platform Views
               </h2>
@@ -1107,12 +914,12 @@ export default function ListingDetailPage() {
             </div>
 
             {/* Add new view entry */}
-            <div className="px-6 py-4 border-b border-gray-100">
+            <div className="px-4 sm:px-6 py-4 border-b border-gray-100">
               <h3 className="text-sm font-medium text-gray-700 mb-3">
                 Add View Entry
               </h3>
-              <form onSubmit={handleViewsSubmit} className="flex flex-wrap items-end gap-4">
-                <div>
+              <form onSubmit={handleViewsSubmit} className="grid grid-cols-2 sm:grid-cols-5 gap-3 items-end">
+                <div className="col-span-2 sm:col-span-1">
                   <label className="block text-xs font-medium text-gray-500 mb-1">
                     Date
                   </label>
@@ -1121,61 +928,63 @@ export default function ListingDetailPage() {
                     value={viewDate}
                     onChange={(e) => setViewDate(e.target.value)}
                     required
-                    className="px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
                   />
                 </div>
                 <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">
-                      Zillow Views
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={zillowViewCount}
-                      onChange={(e) =>
-                        setZillowViewCount(e.target.value === "" ? "" : parseInt(e.target.value))
-                      }
-                      placeholder="Cumulative"
-                      className="w-28 px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
-                    />
-                  </div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                    Zillow
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={zillowViewCount}
+                    onChange={(e) =>
+                      setZillowViewCount(e.target.value === "" ? "" : parseInt(e.target.value))
+                    }
+                    placeholder="Cumulative"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
+                  />
+                </div>
                 <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">
-                      Redfin Views
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={redfinViewCount}
-                      onChange={(e) =>
-                        setRedfinViewCount(e.target.value === "" ? "" : parseInt(e.target.value))
-                      }
-                      placeholder="Cumulative"
-                      className="w-28 px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
-                    />
-                  </div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                    Redfin
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={redfinViewCount}
+                    onChange={(e) =>
+                      setRedfinViewCount(e.target.value === "" ? "" : parseInt(e.target.value))
+                    }
+                    placeholder="Cumulative"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
+                  />
+                </div>
                 <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">
-                      Compass Views
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={compassViewCount}
-                      onChange={(e) =>
-                        setCompassViewCount(e.target.value === "" ? "" : parseInt(e.target.value))
-                      }
-                      placeholder="Cumulative"
-                      className="w-28 px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
-                    />
-                  </div>
-                <button
-                  type="submit"
-                  disabled={savingViews}
-                  className="px-4 py-2 bg-green-600 text-white rounded-md font-medium hover:bg-green-700 disabled:opacity-50 transition-colors text-sm"
-                >
-                  {savingViews ? "Saving..." : "Add Entry"}
-                </button>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                    Compass
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={compassViewCount}
+                    onChange={(e) =>
+                      setCompassViewCount(e.target.value === "" ? "" : parseInt(e.target.value))
+                    }
+                    placeholder="Cumulative"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
+                  />
+                </div>
+                <div className="col-span-2 sm:col-span-1">
+                  <button
+                    type="submit"
+                    disabled={savingViews}
+                    className="w-full px-4 py-2 bg-green-600 text-white rounded-md font-medium hover:bg-green-700 disabled:opacity-50 transition-colors text-sm"
+                  >
+                    {savingViews ? "Saving..." : "Add Entry"}
+                  </button>
+                </div>
               </form>
             </div>
 
@@ -1189,11 +998,11 @@ export default function ListingDetailPage() {
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 text-left text-gray-600">
                     <tr>
-                      <th className="px-6 py-3 font-medium">Date</th>
-                      <th className="px-6 py-3 font-medium">Zillow</th>
-                      <th className="px-6 py-3 font-medium">Redfin</th>
-                      <th className="px-6 py-3 font-medium">Compass</th>
-                      <th className="px-6 py-3 font-medium w-28"></th>
+                      <th className="px-3 sm:px-6 py-3 font-medium">Date</th>
+                      <th className="px-3 sm:px-6 py-3 font-medium">Zillow</th>
+                      <th className="px-3 sm:px-6 py-3 font-medium">Redfin</th>
+                      <th className="px-3 sm:px-6 py-3 font-medium">Compass</th>
+                      <th className="px-3 sm:px-6 py-3 font-medium w-20 sm:w-28"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -1201,29 +1010,29 @@ export default function ListingDetailPage() {
                       const isEditing = editingViewId === v.id;
                       return (
                       <tr key={v.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-3 text-gray-900">{v.date}</td>
-                        <td className="px-6 py-3">
+                        <td className="px-3 sm:px-6 py-3 text-gray-900">{v.date}</td>
+                        <td className="px-3 sm:px-6 py-3">
                             {isEditing ? (
-                              <input type="number" min="0" value={editViewData.zillow_views} onChange={(e) => setEditViewData({ ...editViewData, zillow_views: e.target.value === "" ? "" : parseInt(e.target.value) })} className="w-24 px-2 py-1 border border-gray-300 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600" />
+                              <input type="number" min="0" value={editViewData.zillow_views} onChange={(e) => setEditViewData({ ...editViewData, zillow_views: e.target.value === "" ? "" : parseInt(e.target.value) })} className="w-16 sm:w-24 px-2 py-1 border border-gray-300 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600" />
                             ) : (
                               <span className="text-gray-700">{v.zillow_views ?? "--"}</span>
                             )}
                           </td>
-                        <td className="px-6 py-3">
+                        <td className="px-3 sm:px-6 py-3">
                             {isEditing ? (
-                              <input type="number" min="0" value={editViewData.redfin_views} onChange={(e) => setEditViewData({ ...editViewData, redfin_views: e.target.value === "" ? "" : parseInt(e.target.value) })} className="w-24 px-2 py-1 border border-gray-300 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600" />
+                              <input type="number" min="0" value={editViewData.redfin_views} onChange={(e) => setEditViewData({ ...editViewData, redfin_views: e.target.value === "" ? "" : parseInt(e.target.value) })} className="w-16 sm:w-24 px-2 py-1 border border-gray-300 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600" />
                             ) : (
                               <span className="text-gray-700">{v.redfin_views ?? "--"}</span>
                             )}
                           </td>
-                        <td className="px-6 py-3">
+                        <td className="px-3 sm:px-6 py-3">
                             {isEditing ? (
-                              <input type="number" min="0" value={editViewData.compass_views} onChange={(e) => setEditViewData({ ...editViewData, compass_views: e.target.value === "" ? "" : parseInt(e.target.value) })} className="w-24 px-2 py-1 border border-gray-300 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600" />
+                              <input type="number" min="0" value={editViewData.compass_views} onChange={(e) => setEditViewData({ ...editViewData, compass_views: e.target.value === "" ? "" : parseInt(e.target.value) })} className="w-16 sm:w-24 px-2 py-1 border border-gray-300 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600" />
                             ) : (
                               <span className="text-gray-700">{v.compass_views ?? "--"}</span>
                             )}
                           </td>
-                        <td className="px-6 py-3 text-right">
+                        <td className="px-3 sm:px-6 py-3 text-right">
                           {isEditing ? (
                             <div className="flex gap-2 justify-end">
                               <button onClick={() => handleSaveViewEdit(v.id)} disabled={savingViewEdit} className="text-xs font-medium text-green-600 hover:text-green-800">{savingViewEdit ? "..." : "Save"}</button>

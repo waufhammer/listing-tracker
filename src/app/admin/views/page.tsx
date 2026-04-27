@@ -191,7 +191,7 @@ export default function PlatformViewsPage() {
               Add Views Entry
             </h3>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Date
@@ -270,17 +270,17 @@ export default function PlatformViewsPage() {
 
           {/* Existing entries table */}
           <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
+            <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-medium text-gray-900">
                 View History
               </h3>
             </div>
             {loading ? (
-              <div className="px-6 py-8 text-center text-gray-500">
+              <div className="px-4 sm:px-6 py-8 text-center text-gray-500">
                 Loading...
               </div>
             ) : entries.length === 0 ? (
-              <div className="px-6 py-8 text-center text-gray-500">
+              <div className="px-4 sm:px-6 py-8 text-center text-gray-500">
                 No platform views entries yet.
               </div>
             ) : (
