@@ -181,6 +181,8 @@ export default function ListingDetailPage() {
     setEditSlug(data.slug ?? "");
     setEditListDate(data.list_date ?? "");
     setEditStatus(data.status ?? "prepping");
+    setEditPendingDate(data.pending_date ?? "");
+    setEditSoldDate(data.sold_date ?? "");
     setEditZillow(data.zillow_visible ?? false);
     setEditRedfin(data.redfin_visible ?? false);
     setEditCompass(data.compass_visible ?? false);
@@ -379,6 +381,14 @@ export default function ListingDetailPage() {
       setEditError("Slug must be lowercase letters, numbers, and hyphens only.");
       return;
     }
+    if (editStatus === "pending" && !editPendingDate) {
+      setEditError("Pending date is required when status is Pending.");
+      return;
+    }
+    if (editStatus === "sold" && !editSoldDate) {
+      setEditError("Sold date is required when status is Sold.");
+      return;
+    }
 
     setSavingEdit(true);
 
@@ -425,6 +435,8 @@ export default function ListingDetailPage() {
       slug: editSlug,
       list_date: editListDate || null,
       status: editStatus,
+      pending_date: editPendingDate || null,
+      sold_date: editSoldDate || null,
       zillow_visible: editZillow,
       redfin_visible: editRedfin,
       compass_visible: editCompass,
@@ -1169,6 +1181,38 @@ export default function ListingDetailPage() {
                   ))}
                 </select>
               </div>
+
+              {/* Pending Date */}
+              {editStatus === "pending" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Pending Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={editPendingDate}
+                    onChange={(e) => setEditPendingDate(e.target.value)}
+                    required
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                  />
+                </div>
+              )}
+
+              {/* Sold Date */}
+              {editStatus === "sold" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Sold Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={editSoldDate}
+                    onChange={(e) => setEditSoldDate(e.target.value)}
+                    required
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                  />
+                </div>
+              )}
 
               {/* Photo */}
               <div>

@@ -32,6 +32,8 @@ export default function EditListingPage() {
   const [slug, setSlug] = useState("");
   const [listDate, setListDate] = useState("");
   const [status, setStatus] = useState("prepping");
+  const [pendingDate, setPendingDate] = useState("");
+  const [soldDate, setSoldDate] = useState("");
   const [zillowVisible, setZillowVisible] = useState(false);
   const [redfinVisible, setRedfinVisible] = useState(false);
   const [compassVisible, setCompassVisible] = useState(false);
@@ -103,7 +105,9 @@ export default function EditListingPage() {
       setPropertyAddress(data.property_address ?? "");
       setSlug(data.slug ?? "");
       setListDate(data.list_date ?? "");
-      setStatus(data.status ?? "Prepping");
+      setStatus(data.status ?? "prepping");
+      setPendingDate(data.pending_date ?? "");
+      setSoldDate(data.sold_date ?? "");
       setZillowVisible(data.zillow_visible ?? false);
       setRedfinVisible(data.redfin_visible ?? false);
       setCompassVisible(data.compass_visible ?? false);
@@ -139,6 +143,14 @@ export default function EditListingPage() {
       setError(
         "Slug must be lowercase letters, numbers, and hyphens only (e.g. 'smith' or 'jones-family')."
       );
+      return;
+    }
+    if (status === "pending" && !pendingDate) {
+      setError("Pending date is required when status is Pending.");
+      return;
+    }
+    if (status === "sold" && !soldDate) {
+      setError("Sold date is required when status is Sold.");
       return;
     }
 
@@ -187,6 +199,8 @@ export default function EditListingPage() {
       slug,
       list_date: listDate || null,
       status,
+      pending_date: pendingDate || null,
+      sold_date: soldDate || null,
       zillow_visible: zillowVisible,
       redfin_visible: redfinVisible,
       compass_visible: compassVisible,
@@ -374,6 +388,40 @@ export default function EditListingPage() {
                 ))}
               </select>
             </div>
+
+            {/* Pending Date */}
+            {status === "pending" && (
+              <div>
+                <label htmlFor="pending_date" className="block text-sm font-medium text-gray-700 mb-1">
+                  Pending Date <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="pending_date"
+                  type="date"
+                  value={pendingDate}
+                  onChange={(e) => setPendingDate(e.target.value)}
+                  required
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
+              </div>
+            )}
+
+            {/* Sold Date */}
+            {status === "sold" && (
+              <div>
+                <label htmlFor="sold_date" className="block text-sm font-medium text-gray-700 mb-1">
+                  Sold Date <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="sold_date"
+                  type="date"
+                  value={soldDate}
+                  onChange={(e) => setSoldDate(e.target.value)}
+                  required
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
+              </div>
+            )}
 
             {/* Photo Upload */}
             <div>
