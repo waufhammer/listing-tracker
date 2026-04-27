@@ -164,21 +164,22 @@ export default async function ClientDashboardPage({
     { label: "Disclosure Packages", value: disclosureRequests },
   ];
 
-  // Cumulative activity trend (showings + OH groups by date, ascending)
+  // Cumulative activity trend (three lines by date, ascending)
   const cumulativeActivity = (() => {
-    const dayMap: Record<string, number> = {};
+    const dayMap: Record<string, { showings: number; previews: number; ohGroups: number }> = {};
     entries.forEach((e) => {
-      if (e.type === "buyer_showing" || e.type === "agent_preview") {
-        dayMap[e.date] = (dayMap[e.date] ?? 0) + 1;
-      } else if (e.type === "open_house") {
-        dayMap[e.date] = (dayMap[e.date] ?? 0) + (e.open_house_groups ?? 0);
-      }
+      if (!dayMap[e.date]) dayMap[e.date] = { showings: 0, previews: 0, ohGroups: 0 };
+      if (e.type === "buyer_showing") dayMap[e.date].showings++;
+      else if (e.type === "agent_preview") dayMap[e.date].previews++;
+      else if (e.type === "open_house") dayMap[e.date].ohGroups += (e.open_house_groups ?? 0);
     });
     const sorted = Object.entries(dayMap).sort(([a], [b]) => a.localeCompare(b));
-    let cumulative = 0;
-    return sorted.map(([date, count]) => {
-      cumulative += count;
-      return { date, total: cumulative };
+    let cumShowings = 0, cumPreviews = 0, cumOH = 0;
+    return sorted.map(([date, counts]) => {
+      cumShowings += counts.showings;
+      cumPreviews += counts.previews;
+      cumOH += counts.ohGroups;
+      return { date, showings: cumShowings, previews: cumPreviews, openHouseGroups: cumOH };
     });
   })();
 

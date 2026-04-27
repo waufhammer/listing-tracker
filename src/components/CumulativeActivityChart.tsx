@@ -8,10 +8,18 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Legend,
 } from "recharts";
 
+interface DataPoint {
+  date: string;
+  showings: number;
+  previews: number;
+  openHouseGroups: number;
+}
+
 interface CumulativeActivityChartProps {
-  data: { date: string; total: number }[];
+  data: DataPoint[];
 }
 
 function formatDate(dateStr: string) {
@@ -30,7 +38,9 @@ export default function CumulativeActivityChart({ data }: CumulativeActivityChar
 
   const chartData = data.map((d) => ({
     date: formatDate(d.date),
-    Showings: d.total,
+    Showings: d.showings,
+    Previews: d.previews,
+    "OH Groups": d.openHouseGroups,
   }));
 
   return (
@@ -58,13 +68,30 @@ export default function CumulativeActivityChart({ data }: CumulativeActivityChar
             boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
           }}
         />
+        <Legend wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }} />
         <Line
           type="monotone"
           dataKey="Showings"
           stroke="#00B04F"
           strokeWidth={2}
-          dot={{ r: 3, fill: "#00B04F" }}
-          activeDot={{ r: 5 }}
+          dot={{ r: 2, fill: "#00B04F" }}
+          activeDot={{ r: 4 }}
+        />
+        <Line
+          type="monotone"
+          dataKey="Previews"
+          stroke="#006AFF"
+          strokeWidth={2}
+          dot={{ r: 2, fill: "#006AFF" }}
+          activeDot={{ r: 4 }}
+        />
+        <Line
+          type="monotone"
+          dataKey="OH Groups"
+          stroke="#F59E0B"
+          strokeWidth={2}
+          dot={{ r: 2, fill: "#F59E0B" }}
+          activeDot={{ r: 4 }}
         />
       </LineChart>
     </ResponsiveContainer>
