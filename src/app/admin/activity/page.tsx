@@ -4,6 +4,7 @@ import { useState, useEffect, FormEvent, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { useAdminUser } from "@/lib/admin-user-context";
 
 interface Listing {
   id: string;
@@ -19,10 +20,10 @@ interface ActivityEntry {
   is_repeat_visit: boolean;
   follow_up_sent: boolean;
   buyer_packet_requested: boolean;
-  raw_feedback: string | null;
   display_feedback: string | null;
   feedback_visible: boolean;
   open_house_groups: number | null;
+  logged_by: string | null;
   created_at: string;
 }
 
@@ -36,6 +37,7 @@ const activityTypeToDb: Record<ActivityType, string> = {
 
 function ActivityEntryContent() {
   const searchParams = useSearchParams();
+  const adminUser = useAdminUser();
   const listingParam = searchParams.get("listing");
   const [listings, setListings] = useState<Listing[]>([]);
   const [selectedListingId, setSelectedListingId] = useState(listingParam || "");
@@ -53,11 +55,9 @@ function ActivityEntryContent() {
   const [isRepeatVisit, setIsRepeatVisit] = useState(false);
   const [followUpSent, setFollowUpSent] = useState(false);
   const [buyerPacketRequested, setBuyerPacketRequested] = useState(false);
-  const [rawFeedback, setRawFeedback] = useState("");
-  const [displayFeedback, setDisplayFeedback] = useState("");
+  const [feedback, setFeedback] = useState("");
   const [feedbackVisible, setFeedbackVisible] = useState(false);
   const [openHouseGroups, setOpenHouseGroups] = useState<number | "">("");
-  const [displayFeedbackTouched, setDisplayFeedbackTouched] = useState(false);
 
   useEffect(() => {
     fetchListings();
@@ -127,19 +127,10 @@ function ActivityEntryContent() {
     setIsRepeatVisit(false);
     setFollowUpSent(false);
     setBuyerPacketRequested(false);
-    setRawFeedback("");
-    setDisplayFeedback("");
+    setFeedback("");
     setFeedbackVisible(false);
     setOpenHouseGroups("");
     setRepeatBanner(false);
-    setDisplayFeedbackTouched(false);
-  }
-
-  function handleRawFeedbackChange(value: string) {
-    setRawFeedback(value);
-    if (!displayFeedbackTouched) {
-      setDisplayFeedback(value);
-    }
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -150,9 +141,9 @@ function ActivityEntryContent() {
       listing_id: selectedListingId,
       date: activityDate,
       type: activityTypeToDb[activityType],
-      raw_feedback: rawFeedback || null,
-      display_feedback: displayFeedback || null,
+      display_feedback: feedback || null,
       feedback_visible: feedbackVisible,
+      logged_by: adminUser?.id ?? null,
     };
 
     if (activityType === "Open House") {
@@ -335,36 +326,17 @@ function ActivityEntryContent() {
                   </div>
                 )}
 
-                {/* Raw feedback */}
+                {/* Feedback */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Raw Feedback
+                    Feedback
                   </label>
                   <textarea
-                    value={rawFeedback}
-                    onChange={(e) => handleRawFeedbackChange(e.target.value)}
+                    value={feedback}
+                    onChange={(e) => setFeedback(e.target.value)}
                     rows={3}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
                   />
-                </div>
-
-                {/* Display feedback */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Display Feedback (Client-Facing)
-                  </label>
-                  <textarea
-                    value={displayFeedback}
-                    onChange={(e) => {
-                      setDisplayFeedback(e.target.value);
-                      setDisplayFeedbackTouched(true);
-                    }}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    Auto-populates from raw feedback. Edit to customize what the client sees.
-                  </p>
                 </div>
 
                 {/* Feedback visible toggle */}
@@ -443,6 +415,11 @@ function ActivityEntryContent() {
                       <span className="truncate">
                         {entry.agent_name || (entry.type === "open_house" ? `${entry.open_house_groups ?? 0} groups` : "-")}
                       </span>
+                      {entry.logged_by && (
+                        <span className="text-xs text-gray-400">
+                          by {entry.logged_by === "will" ? "Will" : "VA"}
+                        </span>
+                      )}
                     </div>
                   </div>
                 ))}

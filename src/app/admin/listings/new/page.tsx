@@ -6,7 +6,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
 const STATUS_OPTIONS = [
-  { value: "prepping", label: "Prepping" },
+  { value: "prepping", label: "Preparing to List" },
   { value: "active", label: "Active" },
   { value: "pending", label: "Pending" },
   { value: "sold", label: "Sold" },

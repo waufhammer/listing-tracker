@@ -12,20 +12,21 @@ type Listing = {
   slug: string;
   status: string;
   list_date: string | null;
+  pending_date: string | null;
 };
 
 const COLUMNS = [
-  { key: "prepping", label: "Prepping", color: "border-yellow-400", bg: "bg-yellow-50", badge: "bg-yellow-100 text-yellow-800" },
+  { key: "prepping", label: "Preparing to List", color: "border-blue-400", bg: "bg-blue-50", badge: "bg-blue-100 text-blue-800" },
   { key: "active", label: "Active", color: "border-green-500", bg: "bg-green-50", badge: "bg-green-100 text-green-800" },
-  { key: "pending", label: "Pending", color: "border-blue-400", bg: "bg-blue-50", badge: "bg-blue-100 text-blue-800" },
-  { key: "sold", label: "Sold", color: "border-gray-400", bg: "bg-gray-50", badge: "bg-gray-100 text-gray-700" },
+  { key: "pending", label: "Pending", color: "border-amber-400", bg: "bg-amber-50", badge: "bg-amber-100 text-amber-800" },
+  { key: "sold", label: "Sold", color: "border-red-400", bg: "bg-red-50", badge: "bg-red-100 text-red-800" },
 ];
 
-function daysOnMarket(listDate: string | null): number | null {
+function daysOnMarket(listDate: string | null, pendingDate?: string | null): number | null {
   if (!listDate) return null;
   const start = new Date(listDate);
-  const now = new Date();
-  const diff = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+  const end = pendingDate ? new Date(pendingDate) : new Date();
+  const diff = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
   return diff >= 0 ? diff : null;
 }
 
@@ -41,7 +42,7 @@ export default function AdminListingsPage() {
 
       const { data: listingsData, error } = await supabase
         .from("listings")
-        .select("id, client_name, property_address, slug, status, list_date")
+        .select("id, client_name, property_address, slug, status, list_date, pending_date")
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -121,7 +122,7 @@ export default function AdminListingsPage() {
                   </div>
                 ) : (
                   colListings.map((listing) => {
-                    const dom = daysOnMarket(listing.list_date);
+                    const dom = daysOnMarket(listing.list_date, listing.pending_date);
                     const showings = showingCounts[listing.id] ?? 0;
 
                     return (

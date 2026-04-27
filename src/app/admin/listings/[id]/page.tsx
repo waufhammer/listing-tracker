@@ -4,6 +4,7 @@ import { useState, useEffect, FormEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { useAdminUser } from "@/lib/admin-user-context";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -14,6 +15,8 @@ interface Listing {
   slug: string;
   status: string;
   list_date: string | null;
+  pending_date: string | null;
+  sold_date: string | null;
   zillow_visible: boolean;
   redfin_visible: boolean;
   compass_visible: boolean;
@@ -30,10 +33,10 @@ interface ActivityEntry {
   is_repeat_visit: boolean;
   follow_up_sent: boolean;
   buyer_packet_requested: boolean;
-  raw_feedback: string | null;
   display_feedback: string | null;
   feedback_visible: boolean;
   open_house_groups: number | null;
+  logged_by: string | null;
 }
 
 interface PlatformView {
@@ -66,27 +69,27 @@ const typeDotColor: Record<string, string> = {
 };
 
 const STATUS_OPTIONS = [
-  { value: "prepping", label: "Prepping" },
+  { value: "prepping", label: "Preparing to List" },
   { value: "active", label: "Active" },
   { value: "pending", label: "Pending" },
   { value: "sold", label: "Sold" },
 ];
 
 const statusColor: Record<string, string> = {
-  prepping: "bg-yellow-100 text-yellow-800",
+  prepping: "bg-blue-100 text-blue-800",
   active: "bg-green-100 text-green-800",
-  pending: "bg-blue-100 text-blue-800",
-  sold: "bg-gray-100 text-gray-800",
+  pending: "bg-amber-100 text-amber-800",
+  sold: "bg-red-100 text-red-800",
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function daysOnMarket(listDate: string | null): number | null {
+function daysOnMarket(listDate: string | null, pendingDate?: string | null): number | null {
   if (!listDate) return null;
   const start = new Date(listDate);
-  const now = new Date();
+  const end = pendingDate ? new Date(pendingDate) : new Date();
   const diff = Math.floor(
-    (now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)
+    (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)
   );
   return diff >= 0 ? diff : null;
 }
@@ -100,6 +103,7 @@ function isValidSlug(slug: string): boolean {
 export default function ListingDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const adminUser = useAdminUser();
   const id = params.id as string;
 
   // ── Core data ──────────────────────────────────────────────────────────
@@ -112,6 +116,7 @@ export default function ListingDetailPage() {
   // ── Section collapse state ─────────────────────────────────────────────
   const [showAddEntry, setShowAddEntry] = useState(false);
   const [showEditListing, setShowEditListing] = useState(false);
+  const [showPlatformViews, setShowPlatformViews] = useState(false);
 
   // ── Single activity entry form ─────────────────────────────────────────
   const [singleType, setSingleType] = useState<ActivityType>("Buyer Showing");
@@ -120,9 +125,7 @@ export default function ListingDetailPage() {
   const [singleRepeat, setSingleRepeat] = useState(false);
   const [singleFollowUp, setSingleFollowUp] = useState(false);
   const [singlePacket, setSinglePacket] = useState(false);
-  const [singleRawFeedback, setSingleRawFeedback] = useState("");
-  const [singleDisplayFeedback, setSingleDisplayFeedback] = useState("");
-  const [singleDisplayTouched, setSingleDisplayTouched] = useState(false);
+  const [singleFeedback, setSingleFeedback] = useState("");
   const [singleFeedbackVisible, setSingleFeedbackVisible] = useState(false);
   const [singleOpenHouseGroups, setSingleOpenHouseGroups] = useState<number | "">("");
   const [savingSingle, setSavingSingle] = useState(false);
@@ -145,6 +148,8 @@ export default function ListingDetailPage() {
   const [editSlug, setEditSlug] = useState("");
   const [editListDate, setEditListDate] = useState("");
   const [editStatus, setEditStatus] = useState("prepping");
+  const [editPendingDate, setEditPendingDate] = useState("");
+  const [editSoldDate, setEditSoldDate] = useState("");
   const [editZillow, setEditZillow] = useState(false);
   const [editRedfin, setEditRedfin] = useState(false);
   const [editCompass, setEditCompass] = useState(false);
@@ -215,7 +220,7 @@ export default function ListingDetailPage() {
   const buyerShowingCount = entries.filter((e) => e.type === "buyer_showing").length;
   const agentPreviewCount = entries.filter((e) => e.type === "agent_preview").length;
   const openHouseCount = entries.filter((e) => e.type === "open_house").length;
-  const dom = listing ? daysOnMarket(listing.list_date) : null;
+  const dom = listing ? daysOnMarket(listing.list_date, listing.pending_date) : null;
 
   const latestView = views.length > 0 ? views[0] : null;
   const totalPlatformViews =
@@ -232,20 +237,11 @@ export default function ListingDetailPage() {
     setSingleRepeat(false);
     setSingleFollowUp(false);
     setSinglePacket(false);
-    setSingleRawFeedback("");
-    setSingleDisplayFeedback("");
-    setSingleDisplayTouched(false);
+    setSingleFeedback("");
     setSingleFeedbackVisible(false);
     setSingleOpenHouseGroups("");
     setSingleError("");
     setRepeatBanner(false);
-  }
-
-  function handleSingleRawFeedbackChange(value: string) {
-    setSingleRawFeedback(value);
-    if (!singleDisplayTouched) {
-      setSingleDisplayFeedback(value);
-    }
   }
 
   async function checkRepeatVisit(name: string) {
@@ -276,9 +272,9 @@ export default function ListingDetailPage() {
       listing_id: id,
       date: singleDate,
       type: activityTypeToDb[singleType],
-      raw_feedback: singleRawFeedback || null,
-      display_feedback: singleDisplayFeedback || null,
+      display_feedback: singleFeedback || null,
       feedback_visible: singleFeedbackVisible,
+      logged_by: adminUser?.id ?? null,
     };
 
     if (singleType === "Open House") {
@@ -493,50 +489,77 @@ export default function ListingDetailPage() {
 
   return (
     <div className="max-w-5xl mx-auto">
-      {/* Back link + heading */}
-      <div className="mb-6">
-        <Link
-          href="/admin"
-          className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
-        >
-          &larr; Back to Listings
-        </Link>
+      {/* Heading */}
+
+      <div className="mb-4">
+        <h1 className="text-2xl font-bold text-gray-900">
+          {listing.property_address}
+        </h1>
+        <p className="text-sm text-gray-500 mt-1">
+          {listing.client_name}
+          <span
+            className={`ml-3 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${
+              statusColor[listing.status] ?? "bg-gray-100 text-gray-800"
+            }`}
+          >
+            {listing.status}
+          </span>
+        </p>
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            {listing.property_address}
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {listing.client_name}
-            <span
-              className={`ml-3 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${
-                statusColor[listing.status] ?? "bg-gray-100 text-gray-800"
-              }`}
-            >
-              {listing.status}
-            </span>
-          </p>
-        </div>
+      {/* ════════════════════════════════════════════════════════════════════
+          1. COMPACT STATS
+      ════════════════════════════════════════════════════════════════════ */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-gray-600 mb-5">
+        <span><span className="font-semibold text-gray-900">{buyerShowingCount}</span> Showings</span>
+        <span><span className="font-semibold text-gray-900">{agentPreviewCount}</span> Previews</span>
+        <span><span className="font-semibold text-gray-900">{openHouseCount}</span> Open Houses</span>
+        <span><span className="font-semibold text-gray-900">{dom ?? "--"}</span> DOM</span>
+        <span><span className="font-semibold text-gray-900">{totalPlatformViews}</span> Platform Views</span>
+      </div>
+
+      {/* ════════════════════════════════════════════════════════════════════
+          2. ACTION BUTTONS
+      ════════════════════════════════════════════════════════════════════ */}
+      <div className="flex flex-wrap gap-3 mb-8">
+        <button
+          onClick={() => router.push("/admin")}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
+        >
+          &larr; Back
+        </button>
         <Link
           href={`/${listing.slug}`}
           target="_blank"
+          rel="noopener noreferrer"
           className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 transition-colors"
         >
           View Client Page ↗
         </Link>
-      </div>
-
-      {/* ════════════════════════════════════════════════════════════════════
-          1. SUMMARY STATS
-      ════════════════════════════════════════════════════════════════════ */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-        <StatCard label="Buyer Showings" value={buyerShowingCount} />
-        <StatCard label="Agent Previews" value={agentPreviewCount} />
-        <StatCard label="Open Houses" value={openHouseCount} />
-        <StatCard label="Days on Market" value={dom ?? "--"} />
-        <StatCard label="Total Platform Views" value={totalPlatformViews} />
+        <button
+          onClick={() => {
+            setShowAddEntry(!showAddEntry);
+            if (!showAddEntry) resetSingleForm();
+          }}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-700 transition-colors"
+        >
+          Enter Activity
+        </button>
+        <button
+          onClick={() => setShowPlatformViews(!showPlatformViews)}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-700 transition-colors"
+        >
+          Enter Platform Views
+        </button>
+        <button
+          onClick={() => {
+            setShowEditListing(!showEditListing);
+            setEditError("");
+          }}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
+        >
+          Edit Listing
+        </button>
       </div>
 
       {/* ════════════════════════════════════════════════════════════════════
@@ -595,6 +618,11 @@ export default function ListingDetailPage() {
                           </span>
                         </>
                       )}
+                      {entry.logged_by && (
+                        <span className="text-xs text-gray-400 shrink-0">
+                          {entry.logged_by === "will" ? "W" : "VA"}
+                        </span>
+                      )}
                       <div className="ml-auto flex items-center gap-2 shrink-0">
                         {entry.is_repeat_visit && (
                           <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
@@ -651,7 +679,14 @@ export default function ListingDetailPage() {
                         </Link>
                       </div>
                       <div className="flex items-center justify-between text-gray-600">
-                        <span>{entry.date}</span>
+                        <span>
+                          {entry.date}
+                          {entry.logged_by && (
+                            <span className="ml-2 text-xs text-gray-400">
+                              by {entry.logged_by === "will" ? "Will" : "VA"}
+                            </span>
+                          )}
+                        </span>
                         <span className="truncate ml-2">
                           {entry.agent_name ||
                             (entry.type === "open_house"
@@ -690,24 +725,17 @@ export default function ListingDetailPage() {
       </section>
 
       {/* ════════════════════════════════════════════════════════════════════
-          3. ADD SINGLE ACTIVITY ENTRY (collapsible)
+          3. ADD SINGLE ACTIVITY ENTRY (modal)
       ════════════════════════════════════════════════════════════════════ */}
-      <section className="mb-8">
-        <button
-          onClick={() => {
-            setShowAddEntry(!showAddEntry);
-            if (!showAddEntry) resetSingleForm();
-          }}
-          className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-3"
-        >
-          <span className={`transition-transform ${showAddEntry ? "rotate-90" : ""}`}>
-            &#9654;
-          </span>
-          Add Activity Entry
-        </button>
-
-        {showAddEntry && (
-          <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+      {showAddEntry && (
+      <div className="fixed inset-0 z-50 overflow-y-auto">
+        <div className="flex min-h-full items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50" onClick={() => { setShowAddEntry(false); resetSingleForm(); }} />
+          <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Enter Activity</h2>
+              <button onClick={() => { setShowAddEntry(false); resetSingleForm(); }} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+            </div>
             {singleError && (
               <div className="mb-4 rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-700">
                 {singleError}
@@ -818,36 +846,17 @@ export default function ListingDetailPage() {
                 </div>
               )}
 
-              {/* Raw feedback */}
+              {/* Feedback */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Raw Feedback
+                  Feedback
                 </label>
                 <textarea
-                  value={singleRawFeedback}
-                  onChange={(e) => handleSingleRawFeedbackChange(e.target.value)}
+                  value={singleFeedback}
+                  onChange={(e) => setSingleFeedback(e.target.value)}
                   rows={3}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
                 />
-              </div>
-
-              {/* Display feedback */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Display Feedback (Client-Facing)
-                </label>
-                <textarea
-                  value={singleDisplayFeedback}
-                  onChange={(e) => {
-                    setSingleDisplayFeedback(e.target.value);
-                    setSingleDisplayTouched(true);
-                  }}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  Auto-populates from raw feedback. Edit to customize what the client sees.
-                </p>
               </div>
 
               {/* Feedback visible */}
@@ -883,18 +892,23 @@ export default function ListingDetailPage() {
               </div>
             </form>
           </div>
-        )}
-      </section>
+        </div>
+      </div>
+      )}
 
       {/* ════════════════════════════════════════════════════════════════════
-          4. PLATFORM VIEWS
+          4. PLATFORM VIEWS (modal)
       ════════════════════════════════════════════════════════════════════ */}
-        <section className="mb-8">
-          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+      {showPlatformViews && (
+      <div className="fixed inset-0 z-50 overflow-y-auto">
+        <div className="flex min-h-full items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setShowPlatformViews(false)} />
+          <div className="relative bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
             <div className="px-4 sm:px-6 py-4 border-b border-gray-200 flex items-center justify-between gap-3">
               <h2 className="text-lg font-semibold text-gray-900">
                 Platform Views
               </h2>
+              <div className="flex items-center gap-4">
               <label className="flex items-center gap-2 text-sm text-gray-600">
                 <span>{listing.platform_views_public ? "Visible to client" : "Hidden from client"}</span>
                 <button
@@ -911,6 +925,8 @@ export default function ListingDetailPage() {
                   <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${listing.platform_views_public ? "translate-x-6" : "translate-x-1"}`} />
                 </button>
               </label>
+              <button onClick={() => setShowPlatformViews(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+              </div>
             </div>
 
             {/* Add new view entry */}
@@ -1053,27 +1069,22 @@ export default function ListingDetailPage() {
               </div>
             )}
           </div>
-        </section>
+        </div>
+      </div>
+      )}
 
       {/* ════════════════════════════════════════════════════════════════════
-          6. EDIT LISTING (collapsible)
+          6. EDIT LISTING (modal)
       ════════════════════════════════════════════════════════════════════ */}
-      <section className="mb-12">
-        <button
-          onClick={() => {
-            setShowEditListing(!showEditListing);
-            setEditError("");
-          }}
-          className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-3"
-        >
-          <span className={`transition-transform ${showEditListing ? "rotate-90" : ""}`}>
-            &#9654;
-          </span>
-          Edit Listing
-        </button>
-
-        {showEditListing && (
-          <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+      {showEditListing && (
+      <div className="fixed inset-0 z-50 overflow-y-auto">
+        <div className="flex min-h-full items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50" onClick={() => { setShowEditListing(false); setEditError(""); }} />
+          <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Edit Listing</h2>
+              <button onClick={() => { setShowEditListing(false); setEditError(""); }} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+            </div>
             {editError && (
               <div className="mb-4 rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-700">
                 {editError}
@@ -1215,21 +1226,10 @@ export default function ListingDetailPage() {
               </div>
             </form>
           </div>
-        )}
-      </section>
+        </div>
+      </div>
+      )}
     </div>
   );
 }
 
-// ── Stat Card ────────────────────────────────────────────────────────────────
-
-function StatCard({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
-      <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
-        {label}
-      </p>
-      <p className="mt-1 text-2xl font-bold text-gray-900">{value}</p>
-    </div>
-  );
-}

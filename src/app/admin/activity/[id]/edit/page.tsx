@@ -34,10 +34,10 @@ export default function EditActivityEntryPage() {
   const [isRepeatVisit, setIsRepeatVisit] = useState(false);
   const [followUpSent, setFollowUpSent] = useState(false);
   const [buyerPacketRequested, setBuyerPacketRequested] = useState(false);
-  const [rawFeedback, setRawFeedback] = useState("");
-  const [displayFeedback, setDisplayFeedback] = useState("");
+  const [feedback, setFeedback] = useState("");
   const [feedbackVisible, setFeedbackVisible] = useState(false);
   const [openHouseGroups, setOpenHouseGroups] = useState<number | "">("");
+  const [loggedBy, setLoggedBy] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchEntry() {
@@ -56,10 +56,10 @@ export default function EditActivityEntryPage() {
         setIsRepeatVisit(data.is_repeat_visit || false);
         setFollowUpSent(data.follow_up_sent || false);
         setBuyerPacketRequested(data.buyer_packet_requested || false);
-        setRawFeedback(data.raw_feedback || "");
-        setDisplayFeedback(data.display_feedback || "");
+        setFeedback(data.display_feedback || data.raw_feedback || "");
         setFeedbackVisible(data.feedback_visible || false);
         setOpenHouseGroups(data.open_house_groups ?? "");
+        setLoggedBy(data.logged_by ?? null);
       }
       setLoading(false);
     }
@@ -73,8 +73,7 @@ export default function EditActivityEntryPage() {
     const updates: Record<string, unknown> = {
       type: displayToDb[activityType] || activityType,
       date: activityDate,
-      raw_feedback: rawFeedback || null,
-      display_feedback: displayFeedback || null,
+      display_feedback: feedback || null,
       feedback_visible: feedbackVisible,
     };
 
@@ -128,11 +127,22 @@ export default function EditActivityEntryPage() {
 
   return (
     <div className="max-w-2xl">
+      <button
+        onClick={() => router.back()}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors mb-4"
+      >
+        &larr; Back
+      </button>
       <h2 className="text-2xl font-semibold text-gray-900 mb-6">
         Edit Activity Entry
       </h2>
 
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+        {loggedBy && (
+          <p className="text-sm text-gray-500 mb-4">
+            Logged by {loggedBy === "will" ? "Will" : "Assistant"}
+          </p>
+        )}
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Activity type */}
           <div>
@@ -231,27 +241,14 @@ export default function EditActivityEntryPage() {
             </div>
           )}
 
-          {/* Raw feedback */}
+          {/* Feedback */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Raw Feedback
+              Feedback
             </label>
             <textarea
-              value={rawFeedback}
-              onChange={(e) => setRawFeedback(e.target.value)}
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
-            />
-          </div>
-
-          {/* Display feedback */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Display Feedback
-            </label>
-            <textarea
-              value={displayFeedback}
-              onChange={(e) => setDisplayFeedback(e.target.value)}
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
               rows={3}
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
             />

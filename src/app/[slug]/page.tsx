@@ -27,10 +27,10 @@ interface ActivityEntry {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-function daysOnMarket(listDate: string): number {
+function daysOnMarket(listDate: string, pendingDate?: string | null): number {
   const start = new Date(listDate + "T00:00:00");
-  const now = new Date();
-  return Math.max(0, Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+  const end = pendingDate ? new Date(pendingDate + "T00:00:00") : new Date();
+  return Math.max(0, Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
 }
 
 function formatDate(dateStr: string): string {
@@ -58,7 +58,7 @@ function formatRelativeTime(isoStr: string): string {
 const statusConfig: Record<string, { label: string; bg: string; text: string; border: string }> = {
   active: { label: "Active", bg: "bg-green-50", text: "text-green-800", border: "border-green-200" },
   pending: { label: "Pending", bg: "bg-amber-50", text: "text-amber-800", border: "border-amber-200" },
-  sold: { label: "Sold", bg: "bg-gray-100", text: "text-gray-700", border: "border-gray-300" },
+  sold: { label: "Sold", bg: "bg-red-50", text: "text-red-800", border: "border-red-200" },
 };
 
 const activityTypeConfig: Record<string, { label: string; color: string; dotColor: string }> = {
@@ -117,7 +117,7 @@ export default async function ClientDashboardPage({
 
   // ── Compute stats ─────────────────────────────────────────────────────
 
-  const dom = listing.list_date ? daysOnMarket(listing.list_date) : 0;
+  const dom = listing.list_date ? daysOnMarket(listing.list_date, listing.pending_date) : 0;
 
   const buyerShowings = entries.filter((e) => e.type === "buyer_showing");
   const agentPreviews = entries.filter((e) => e.type === "agent_preview");
@@ -219,6 +219,14 @@ export default async function ClientDashboardPage({
           </div>
         </div>
       </div>
+
+      {/* ── Status Banners ────────────────────────────────────── */}
+      {listing.status === "sold" && (
+        <div className="mb-8 rounded-xl border border-red-200 bg-red-50 px-5 py-4">
+          <p className="text-sm font-semibold text-red-800">This property has been sold.</p>
+          <p className="text-sm text-red-700 mt-1">Showing activity from the listing period is available below.</p>
+        </div>
+      )}
 
       {/* ── Main Content ─────────────────────────────────────── */}
       <div>
