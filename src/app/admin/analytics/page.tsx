@@ -213,6 +213,22 @@ export default function AnalyticsPage() {
   const aggOffersToGroups = aggTotalGroups > 0 ? (aggOffers / aggTotalGroups) * 100 : null;
   const aggOffersToDisc = aggDisclosures > 0 ? (aggOffers / aggDisclosures) * 100 : null;
 
+  // Sold-only benchmarks
+  const soldListings = summaries.filter((s) => s.listing.status === "sold");
+  const soldCount = soldListings.length;
+  const avgDom = soldCount > 0
+    ? soldListings.reduce((sum, s) => sum + (s.dom ?? 0), 0) / soldCount
+    : null;
+  const avgPctOver = soldCount > 0
+    ? soldListings.filter((s) => s.pctOverUnder != null).reduce((sum, s) => sum + s.pctOverUnder!, 0) / (soldListings.filter((s) => s.pctOverUnder != null).length || 1)
+    : null;
+  const avgOffers = soldCount > 0
+    ? soldListings.reduce((sum, s) => sum + s.offers, 0) / soldCount
+    : null;
+  const avgGroups = soldCount > 0
+    ? soldListings.reduce((sum, s) => sum + s.totalGroups, 0) / soldCount
+    : null;
+
   const aggFunnelData = [
     { stage: "Groups", count: aggTotalGroups },
     { stage: "Disclosures", count: aggDisclosures },
@@ -295,6 +311,22 @@ export default function AnalyticsPage() {
                 </BarChart>
               </ResponsiveContainer>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sold benchmarks */}
+      {soldCount > 0 && (
+        <div className="mb-8">
+          <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-4">
+            Sold Benchmarks
+            <span className="ml-2 text-xs font-normal text-gray-400 normal-case">({soldCount} sold listing{soldCount !== 1 ? "s" : ""})</span>
+          </h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <StatCard label="Avg DOM" value={avgDom != null ? avgDom.toFixed(0) : "--"} sub="days on market" />
+            <StatCard label="Avg Groups" value={avgGroups != null ? avgGroups.toFixed(1) : "--"} sub="per listing" />
+            <StatCard label="Avg Offers" value={avgOffers != null ? avgOffers.toFixed(1) : "--"} sub="per listing" />
+            <StatCard label="Avg % Over List" value={avgPctOver != null ? formatPct(avgPctOver) : "--"} sub="sale vs list price" />
           </div>
         </div>
       )}

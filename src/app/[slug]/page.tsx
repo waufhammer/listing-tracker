@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase";
 import PlatformViewsChart from "@/components/PlatformViewsChart";
 import ActivitySummaryChart from "@/components/ActivitySummaryChart";
 import ActivityLog from "@/components/ActivityLog";
+import CumulativeActivityChart from "@/components/CumulativeActivityChart";
 import PageViewTracker from "@/components/PageViewTracker";
 
 export const metadata: Metadata = {
@@ -163,6 +164,24 @@ export default async function ClientDashboardPage({
     { label: "Disclosure Packages", value: disclosureRequests },
   ];
 
+  // Cumulative activity trend (showings + OH groups by date, ascending)
+  const cumulativeActivity = (() => {
+    const dayMap: Record<string, number> = {};
+    entries.forEach((e) => {
+      if (e.type === "buyer_showing" || e.type === "agent_preview") {
+        dayMap[e.date] = (dayMap[e.date] ?? 0) + 1;
+      } else if (e.type === "open_house") {
+        dayMap[e.date] = (dayMap[e.date] ?? 0) + (e.open_house_groups ?? 0);
+      }
+    });
+    const sorted = Object.entries(dayMap).sort(([a], [b]) => a.localeCompare(b));
+    let cumulative = 0;
+    return sorted.map(([date, count]) => {
+      cumulative += count;
+      return { date, total: cumulative };
+    });
+  })();
+
   const status = statusConfig[listing.status] ?? null;
 
   // ── Render ────────────────────────────────────────────────────────────
@@ -270,6 +289,12 @@ export default async function ClientDashboardPage({
           <div className="bg-white border border-gray-100 rounded-xl p-4">
             <ActivitySummaryChart data={activitySummaryData} />
           </div>
+          {cumulativeActivity.length > 1 && (
+            <div className="bg-white border border-gray-100 rounded-xl p-4 mt-3">
+              <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-3">Activity Over Time</p>
+              <CumulativeActivityChart data={cumulativeActivity} />
+            </div>
+          )}
         </section>
 
         {/* ── Platform Views ──────────────────────────────── */}
