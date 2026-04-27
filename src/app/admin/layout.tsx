@@ -23,6 +23,22 @@ function NavContent({
   const { user, setUser, profiles } = useAdminUserContext();
   return (
     <nav className="flex-1 px-3 py-4 space-y-1 flex flex-col">
+      <div className="px-3 py-2 mb-2">
+        <label className="block text-xs font-medium text-gray-400 mb-1">Logging as</label>
+        <select
+          value={user?.id ?? ""}
+          onChange={(e) => {
+            const profile = profiles.find((p) => p.id === e.target.value);
+            setUser(profile ?? null);
+          }}
+          className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-md text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
+        >
+          <option value="">Select...</option>
+          {profiles.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+      </div>
       {navItems.map((item) => {
         const isActive =
           item.href === "/admin"
@@ -44,23 +60,6 @@ function NavContent({
           </Link>
         );
       })}
-      <div className="flex-1" />
-      <div className="px-3 py-2">
-        <label className="block text-xs font-medium text-gray-400 mb-1">Logging as</label>
-        <select
-          value={user?.id ?? ""}
-          onChange={(e) => {
-            const profile = profiles.find((p) => p.id === e.target.value);
-            setUser(profile ?? null);
-          }}
-          className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-md text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
-        >
-          <option value="">Select...</option>
-          {profiles.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </select>
-      </div>
       <button
         onClick={onLogout}
         className="w-full px-3 py-2 text-left text-sm font-medium text-gray-600 rounded-md hover:bg-gray-50 hover:text-gray-900 transition-colors"
