@@ -140,7 +140,7 @@ export default function EditActivityEntryPage() {
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
         {loggedBy && (
           <p className="text-sm text-gray-500 mb-4">
-            Logged by {loggedBy === "will" ? "Will" : "Assistant"}
+            Logged by {loggedBy === "will" ? "Will" : "Admin"}
           </p>
         )}
         <form onSubmit={handleSubmit} className="space-y-4">

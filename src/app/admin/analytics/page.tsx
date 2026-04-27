@@ -40,6 +40,8 @@ interface ListingSummary {
   disclosurePkgs: number;
   conversionPct: number | null;
   offers: number;
+  offersToGroupsPct: number | null;
+  offersToDisclosuresPct: number | null;
   pctOverUnder: number | null;
 }
 
@@ -170,6 +172,8 @@ export default function AnalyticsPage() {
       const disclosurePkgs = entries.filter((e) => e.buyer_packet_requested).length;
       const conversionPct = totalGroups > 0 ? (disclosurePkgs / totalGroups) * 100 : null;
       const offers = listing.offers_received ?? 0;
+      const offersToGroupsPct = totalGroups > 0 ? (offers / totalGroups) * 100 : null;
+      const offersToDisclosuresPct = disclosurePkgs > 0 ? (offers / disclosurePkgs) * 100 : null;
       const dom = daysOnMarket(listing.list_date, listing.pending_date);
 
       let pctOverUnder: number | null = null;
@@ -177,7 +181,7 @@ export default function AnalyticsPage() {
         pctOverUnder = ((listing.sale_price - listing.list_price) / listing.list_price) * 100;
       }
 
-      return { listing, dom, totalGroups, disclosurePkgs, conversionPct, offers, pctOverUnder };
+      return { listing, dom, totalGroups, disclosurePkgs, conversionPct, offers, offersToGroupsPct, offersToDisclosuresPct, pctOverUnder };
     });
 
     setSummaries(computed);
@@ -200,6 +204,20 @@ export default function AnalyticsPage() {
   const sorted = [...filtered].sort((a, b) => compareSummaries(a, b, sortKey, sortDir));
 
   const selected = summaries.find((s) => s.listing.id === selectedListingId) ?? null;
+
+  // Aggregate stats for all filtered listings
+  const aggTotalGroups = filtered.reduce((sum, s) => sum + s.totalGroups, 0);
+  const aggDisclosures = filtered.reduce((sum, s) => sum + s.disclosurePkgs, 0);
+  const aggOffers = filtered.reduce((sum, s) => sum + s.offers, 0);
+  const aggDiscConv = aggTotalGroups > 0 ? (aggDisclosures / aggTotalGroups) * 100 : null;
+  const aggOffersToGroups = aggTotalGroups > 0 ? (aggOffers / aggTotalGroups) * 100 : null;
+  const aggOffersToDisc = aggDisclosures > 0 ? (aggOffers / aggDisclosures) * 100 : null;
+
+  const aggFunnelData = [
+    { stage: "Groups", count: aggTotalGroups },
+    { stage: "Disclosures", count: aggDisclosures },
+    { stage: "Offers", count: aggOffers },
+  ];
 
   const funnelData = selected
     ? [
@@ -253,6 +271,33 @@ export default function AnalyticsPage() {
           </button>
         ))}
       </div>
+
+      {/* Aggregate funnel — all filtered listings */}
+      {filtered.length > 0 && (
+        <div className="mb-8">
+          <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-4">
+            All Listings Overview
+            <span className="ml-2 text-xs font-normal text-gray-400 normal-case">({filtered.length} listing{filtered.length !== 1 ? "s" : ""})</span>
+          </h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+            <StatCard label="Total Groups" value={aggTotalGroups} />
+            <StatCard label="Disclosures" value={aggDisclosures} sub={aggDiscConv != null ? `${aggDiscConv.toFixed(1)}% of groups` : undefined} />
+            <StatCard label="Offers" value={aggOffers} />
+            <StatCard label="Offers / Groups" value={aggOffersToGroups != null ? `${aggOffersToGroups.toFixed(1)}%` : "--"} />
+            <StatCard label="Offers / Disclosures" value={aggOffersToDisc != null ? `${aggOffersToDisc.toFixed(1)}%` : "--"} />
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
+              <p className="text-sm font-medium text-gray-500 mb-2">Funnel</p>
+              <ResponsiveContainer width="100%" height={100}>
+                <BarChart data={aggFunnelData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                  <Bar dataKey="count" fill="#00B04F" radius={[4, 4, 0, 0]} />
+                  <XAxis dataKey="stage" tick={{ fontSize: 10, fill: "#9ca3af" }} tickLine={false} axisLine={false} />
+                  <Tooltip contentStyle={tooltipStyle} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Cross-listing summary table */}
       {sorted.length === 0 ? (
@@ -323,14 +368,16 @@ export default function AnalyticsPage() {
           <h3 className="text-lg font-semibold text-gray-900 mb-4">{selected.listing.property_address}</h3>
 
           {/* Stat cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
             <StatCard label="Total Groups" value={selected.totalGroups} sub="Showings + OH groups" />
             <StatCard
               label="Disclosure Pkgs"
               value={selected.disclosurePkgs}
-              sub={selected.conversionPct != null ? `${selected.conversionPct.toFixed(1)}% conversion` : undefined}
+              sub={selected.conversionPct != null ? `${selected.conversionPct.toFixed(1)}% of groups` : undefined}
             />
             <StatCard label="Offers" value={selected.offers} />
+            <StatCard label="Offers / Groups" value={selected.offersToGroupsPct != null ? `${selected.offersToGroupsPct.toFixed(1)}%` : "--"} />
+            <StatCard label="Offers / Disclosures" value={selected.offersToDisclosuresPct != null ? `${selected.offersToDisclosuresPct.toFixed(1)}%` : "--"} />
             <StatCard label="Days on Market" value={selected.dom ?? "--"} />
           </div>
 

@@ -417,7 +417,7 @@ function ActivityEntryContent() {
                       </span>
                       {entry.logged_by && (
                         <span className="text-xs text-gray-400">
-                          by {entry.logged_by === "will" ? "Will" : "VA"}
+                          by {entry.logged_by === "will" ? "Will" : "Admin"}
                         </span>
                       )}
                     </div>

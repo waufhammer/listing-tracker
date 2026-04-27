@@ -646,7 +646,7 @@ export default function ListingDetailPage() {
                       )}
                       {entry.logged_by && (
                         <span className="text-xs text-gray-400 shrink-0">
-                          {entry.logged_by === "will" ? "W" : "VA"}
+                          {entry.logged_by === "will" ? "Will" : "Admin"}
                         </span>
                       )}
                       <div className="ml-auto flex items-center gap-2 shrink-0">
@@ -709,7 +709,7 @@ export default function ListingDetailPage() {
                           {entry.date}
                           {entry.logged_by && (
                             <span className="ml-2 text-xs text-gray-400">
-                              by {entry.logged_by === "will" ? "Will" : "VA"}
+                              by {entry.logged_by === "will" ? "Will" : "Admin"}
                             </span>
                           )}
                         </span>
@@ -1055,7 +1055,7 @@ export default function ListingDetailPage() {
                         <td className="px-3 sm:px-6 py-3 text-gray-900">
                           {v.date}
                           {v.logged_by && (
-                            <span className="ml-2 text-xs text-gray-400">{v.logged_by === "will" ? "W" : "VA"}</span>
+                            <span className="ml-2 text-xs text-gray-400">{v.logged_by === "will" ? "Will" : "Admin"}</span>
                           )}
                         </td>
                         <td className="px-3 sm:px-6 py-3">

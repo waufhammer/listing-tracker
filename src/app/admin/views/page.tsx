@@ -317,7 +317,7 @@ export default function PlatformViewsPage() {
                               className="px-2 py-1 border border-gray-300 rounded text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
                             />
                             {entry.logged_by && (
-                              <span className="ml-2 text-xs text-gray-400">{entry.logged_by === "will" ? "W" : "VA"}</span>
+                              <span className="ml-2 text-xs text-gray-400">{entry.logged_by === "will" ? "Will" : "Admin"}</span>
                             )}
                           </td>
                           <td className="px-3 sm:px-6 py-3">
