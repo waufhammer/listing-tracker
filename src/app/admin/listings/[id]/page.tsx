@@ -22,6 +22,9 @@ interface Listing {
   compass_visible: boolean;
   platform_views_public: boolean;
   photo_url: string | null;
+  list_price: number | null;
+  sale_price: number | null;
+  offers_received: number | null;
 }
 
 interface ActivityEntry {
@@ -46,6 +49,7 @@ interface PlatformView {
   zillow_views: number | null;
   redfin_views: number | null;
   compass_views: number | null;
+  logged_by: string | null;
 }
 
 type ActivityType = "Buyer Showing" | "Agent Preview" | "Open House";
@@ -150,6 +154,9 @@ export default function ListingDetailPage() {
   const [editStatus, setEditStatus] = useState("prepping");
   const [editPendingDate, setEditPendingDate] = useState("");
   const [editSoldDate, setEditSoldDate] = useState("");
+  const [editListPrice, setEditListPrice] = useState<number | "">("");
+  const [editSalePrice, setEditSalePrice] = useState<number | "">("");
+  const [editOffersReceived, setEditOffersReceived] = useState<number | "">("");
   const [editZillow, setEditZillow] = useState(false);
   const [editRedfin, setEditRedfin] = useState(false);
   const [editCompass, setEditCompass] = useState(false);
@@ -183,6 +190,9 @@ export default function ListingDetailPage() {
     setEditStatus(data.status ?? "prepping");
     setEditPendingDate(data.pending_date ?? "");
     setEditSoldDate(data.sold_date ?? "");
+    setEditListPrice(data.list_price ?? "");
+    setEditSalePrice(data.sale_price ?? "");
+    setEditOffersReceived(data.offers_received ?? "");
     setEditZillow(data.zillow_visible ?? false);
     setEditRedfin(data.redfin_visible ?? false);
     setEditCompass(data.compass_visible ?? false);
@@ -313,6 +323,7 @@ export default function ListingDetailPage() {
     row.zillow_views = zillowViewCount === "" ? null : zillowViewCount;
     row.redfin_views = redfinViewCount === "" ? null : redfinViewCount;
     row.compass_views = compassViewCount === "" ? null : compassViewCount;
+    row.logged_by = adminUser?.id ?? null;
 
     const { error } = await supabase.from("platform_views").insert(row);
 
@@ -440,6 +451,9 @@ export default function ListingDetailPage() {
       zillow_visible: editZillow,
       redfin_visible: editRedfin,
       compass_visible: editCompass,
+      list_price: editListPrice === "" ? null : editListPrice,
+      sale_price: editSalePrice === "" ? null : editSalePrice,
+      offers_received: editOffersReceived === "" ? null : editOffersReceived,
     };
     if (newPhotoUrl) updateData.photo_url = newPhotoUrl;
 
@@ -1038,7 +1052,12 @@ export default function ListingDetailPage() {
                       const isEditing = editingViewId === v.id;
                       return (
                       <tr key={v.id} className="hover:bg-gray-50">
-                        <td className="px-3 sm:px-6 py-3 text-gray-900">{v.date}</td>
+                        <td className="px-3 sm:px-6 py-3 text-gray-900">
+                          {v.date}
+                          {v.logged_by && (
+                            <span className="ml-2 text-xs text-gray-400">{v.logged_by === "will" ? "W" : "VA"}</span>
+                          )}
+                        </td>
                         <td className="px-3 sm:px-6 py-3">
                             {isEditing ? (
                               <input type="number" min="0" value={editViewData.zillow_views} onChange={(e) => setEditViewData({ ...editViewData, zillow_views: e.target.value === "" ? "" : parseInt(e.target.value) })} className="w-16 sm:w-24 px-2 py-1 border border-gray-300 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600" />
@@ -1213,6 +1232,48 @@ export default function ListingDetailPage() {
                   />
                 </div>
               )}
+
+              {/* Pricing & Offers */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    List Price
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editListPrice}
+                    onChange={(e) => setEditListPrice(e.target.value === "" ? "" : parseInt(e.target.value))}
+                    placeholder="e.g. 1250000"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Sale Price
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editSalePrice}
+                    onChange={(e) => setEditSalePrice(e.target.value === "" ? "" : parseInt(e.target.value))}
+                    placeholder="e.g. 1300000"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Offers Received
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editOffersReceived}
+                    onChange={(e) => setEditOffersReceived(e.target.value === "" ? "" : parseInt(e.target.value))}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                  />
+                </div>
+              </div>
 
               {/* Photo */}
               <div>

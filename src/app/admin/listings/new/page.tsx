@@ -35,6 +35,9 @@ export default function NewListingPage() {
   const [status, setStatus] = useState("prepping");
   const [pendingDate, setPendingDate] = useState("");
   const [soldDate, setSoldDate] = useState("");
+  const [listPrice, setListPrice] = useState<number | "">("");
+  const [salePrice, setSalePrice] = useState<number | "">("");
+  const [offersReceived, setOffersReceived] = useState<number | "">("");
   const [zillowVisible, setZillowVisible] = useState(false);
   const [redfinVisible, setRedfinVisible] = useState(false);
   const [compassVisible, setCompassVisible] = useState(false);
@@ -126,6 +129,9 @@ export default function NewListingPage() {
       status,
       pending_date: pendingDate || null,
       sold_date: soldDate || null,
+      list_price: listPrice === "" ? null : listPrice,
+      sale_price: salePrice === "" ? null : salePrice,
+      offers_received: offersReceived === "" ? null : offersReceived,
       zillow_visible: zillowVisible,
       redfin_visible: redfinVisible,
       compass_visible: compassVisible,
@@ -301,6 +307,48 @@ export default function NewListingPage() {
                 />
               </div>
             )}
+
+            {/* Pricing & Offers */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  List Price
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={listPrice}
+                  onChange={(e) => setListPrice(e.target.value === "" ? "" : parseInt(e.target.value))}
+                  placeholder="e.g. 1250000"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Sale Price
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={salePrice}
+                  onChange={(e) => setSalePrice(e.target.value === "" ? "" : parseInt(e.target.value))}
+                  placeholder="e.g. 1300000"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Offers Received
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={offersReceived}
+                  onChange={(e) => setOffersReceived(e.target.value === "" ? "" : parseInt(e.target.value))}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
+              </div>
+            </div>
 
             {/* Visibility checkboxes */}
             <div className="flex flex-col sm:flex-row gap-4">
