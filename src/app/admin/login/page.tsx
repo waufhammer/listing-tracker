@@ -2,13 +2,10 @@
 
 import { useState, FormEvent } from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
-
 export default function AdminLoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -25,7 +22,8 @@ export default function AdminLoginPage() {
       const data = await res.json();
 
       if (res.ok && data.success) {
-        router.push("/admin");
+        window.location.href = "/admin";
+        return;
       } else {
         setError(data.error || "Invalid password");
       }
