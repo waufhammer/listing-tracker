@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
+import { checkSlugAvailable, createListing, uploadPropertyPhoto } from "@/lib/actions";
 
 const STATUS_OPTIONS = [
   { value: "prepping", label: "Preparing to List" },
@@ -85,13 +85,9 @@ export default function NewListingPage() {
     setSubmitting(true);
 
     // Check slug uniqueness
-    const { data: existing } = await supabase
-      .from("listings")
-      .select("id")
-      .eq("slug", slug)
-      .maybeSingle();
+    const { available } = await checkSlugAvailable(slug);
 
-    if (existing) {
+    if (!available) {
       setError("That slug is already in use. Please choose a different one.");
       setSubmitting(false);
       return;
@@ -100,24 +96,18 @@ export default function NewListingPage() {
     // Upload photo if provided
     let photoUrl: string | null = null;
     if (photoFile) {
-      const fileExt = photoFile.name.split(".").pop();
-      const filePath = `${slug}-${Date.now()}.${fileExt}`;
+      const fd = new FormData();
+      fd.append("file", photoFile);
+      fd.append("slug", slug);
+      const { url, error: uploadError } = await uploadPropertyPhoto(fd);
 
-      const { error: uploadError } = await supabase.storage
-        .from("property-photos")
-        .upload(filePath, photoFile);
-
-      if (uploadError) {
-        setError(`Photo upload failed: ${uploadError.message}`);
+      if (uploadError || !url) {
+        setError(uploadError || "Photo upload failed");
         setSubmitting(false);
         return;
       }
 
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("property-photos").getPublicUrl(filePath);
-
-      photoUrl = publicUrl;
+      photoUrl = url;
     }
 
     // Insert listing
@@ -138,10 +128,10 @@ export default function NewListingPage() {
     };
     if (photoUrl) listingData.photo_url = photoUrl;
 
-    const { error: insertError } = await supabase.from("listings").insert(listingData);
+    const { error: insertError } = await createListing(listingData);
 
     if (insertError) {
-      setError(`Failed to create listing: ${insertError.message}`);
+      setError(`Failed to create listing: ${insertError}`);
       setSubmitting(false);
       return;
     }

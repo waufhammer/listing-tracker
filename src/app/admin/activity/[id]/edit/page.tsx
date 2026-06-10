@@ -2,7 +2,7 @@
 
 import { useState, useEffect, FormEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { getActivityEntryById, updateActivityEntry, deleteActivityEntry } from "@/lib/actions";
 
 type ActivityType = "Buyer Showing" | "Agent Preview" | "Open House";
 
@@ -41,11 +41,7 @@ export default function EditActivityEntryPage() {
 
   useEffect(() => {
     async function fetchEntry() {
-      const { data } = await supabase
-        .from("activity_entries")
-        .select("*")
-        .eq("id", id)
-        .single();
+      const { data } = await getActivityEntryById(id);
 
       if (data) {
         setListingId(data.listing_id || "");
@@ -91,10 +87,7 @@ export default function EditActivityEntryPage() {
       updates.open_house_groups = null;
     }
 
-    const { error } = await supabase
-      .from("activity_entries")
-      .update(updates)
-      .eq("id", id);
+    const { error } = await updateActivityEntry(id, updates);
 
     if (!error) {
       router.push(`/admin/activity?listing=${listingId}`);
@@ -106,10 +99,7 @@ export default function EditActivityEntryPage() {
     if (!confirm("Are you sure you want to delete this entry?")) return;
     setDeleting(true);
 
-    const { error } = await supabase
-      .from("activity_entries")
-      .delete()
-      .eq("id", id);
+    const { error } = await deleteActivityEntry(id);
 
     if (!error) {
       router.push(`/admin/activity?listing=${listingId}`);

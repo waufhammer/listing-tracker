@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, FormEvent } from "react";
-import { supabase } from "@/lib/supabase";
+import { getListings, getPlatformViews, createPlatformView, updatePlatformView, deletePlatformView } from "@/lib/actions";
 import { useAdminUser } from "@/lib/admin-user-context";
 
 interface Listing {
@@ -55,10 +55,7 @@ export default function PlatformViewsPage() {
   }, [selectedListingId]);
 
   async function fetchListings() {
-    const { data } = await supabase
-      .from("listings")
-      .select("id, property_address, status, compass_visible")
-      .order("property_address");
+    const { data } = await getListings("property_address", true);
     if (data) {
       setListings(data);
       const active = data.filter((l) => l.status === "active");
@@ -72,11 +69,7 @@ export default function PlatformViewsPage() {
 
   async function fetchEntries() {
     setLoading(true);
-    const { data } = await supabase
-      .from("platform_views")
-      .select("*")
-      .eq("listing_id", selectedListingId)
-      .order("date", { ascending: false });
+    const { data } = await getPlatformViews(selectedListingId);
     if (data) {
       setEntries(data);
       // Initialize edit state
@@ -98,7 +91,7 @@ export default function PlatformViewsPage() {
     e.preventDefault();
     setSaving(true);
 
-    const { error: insertError } = await supabase.from("platform_views").insert({
+    const { error: insertError } = await createPlatformView({
       listing_id: selectedListingId,
       date: viewDate,
       zillow_views: zillowViews === "" ? null : zillowViews,
@@ -108,7 +101,7 @@ export default function PlatformViewsPage() {
     });
 
     if (insertError) {
-      alert(`Error: ${insertError.message}`);
+      alert(`Error: ${insertError}`);
     } else {
       setViewDate(new Date().toISOString().split("T")[0]);
       setZillowViews("");
@@ -135,15 +128,12 @@ export default function PlatformViewsPage() {
     if (!row) return;
     setSavingRow(id);
 
-    await supabase
-      .from("platform_views")
-      .update({
-        date: row.date,
-        zillow_views: row.zillow_views === "" ? null : row.zillow_views,
-        redfin_views: row.redfin_views === "" ? null : row.redfin_views,
-        compass_views: row.compass_views === "" ? null : row.compass_views,
-      })
-      .eq("id", id);
+    await updatePlatformView(id, {
+      date: row.date,
+      zillow_views: row.zillow_views === "" ? null : row.zillow_views,
+      redfin_views: row.redfin_views === "" ? null : row.redfin_views,
+      compass_views: row.compass_views === "" ? null : row.compass_views,
+    });
 
     setSavingRow(null);
     fetchEntries();
@@ -153,7 +143,7 @@ export default function PlatformViewsPage() {
     if (!confirm("Delete this entry?")) return;
     setDeletingRow(id);
 
-    await supabase.from("platform_views").delete().eq("id", id);
+    await deletePlatformView(id);
 
     setDeletingRow(null);
     fetchEntries();

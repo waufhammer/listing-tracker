@@ -3,7 +3,7 @@
 import { useState, useEffect, FormEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
+import { getListingById, getActivityEntries, getPlatformViews, checkRepeatVisit, createActivityEntry, updateActivityEntry, createPlatformView, updatePlatformView, deletePlatformView, checkSlugAvailable, uploadPropertyPhoto, updateListing, deleteListing as deleteListingAction } from "@/lib/actions";
 import { useAdminUser } from "@/lib/admin-user-context";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -169,14 +169,10 @@ export default function ListingDetailPage() {
   // ── Data fetching ──────────────────────────────────────────────────────
 
   async function fetchListing() {
-    const { data, error } = await supabase
-      .from("listings")
-      .select("*")
-      .eq("id", id)
-      .maybeSingle();
+    const { data, error } = await getListingById(id);
 
     if (error || !data) {
-      setPageError(error?.message || "Listing not found.");
+      setPageError(error || "Listing not found.");
       setLoading(false);
       return;
     }
@@ -200,20 +196,12 @@ export default function ListingDetailPage() {
   }
 
   async function fetchEntries() {
-    const { data } = await supabase
-      .from("activity_entries")
-      .select("*")
-      .eq("listing_id", id)
-      .order("date", { ascending: false });
+    const { data } = await getActivityEntries(id);
     if (data) setEntries(data);
   }
 
   async function fetchViews() {
-    const { data } = await supabase
-      .from("platform_views")
-      .select("*")
-      .eq("listing_id", id)
-      .order("date", { ascending: false });
+    const { data } = await getPlatformViews(id);
     if (data) setViews(data);
   }
 
@@ -256,18 +244,13 @@ export default function ListingDetailPage() {
     setRepeatBanner(false);
   }
 
-  async function checkRepeatVisit(name: string) {
+  async function handleCheckRepeat(name: string) {
     if (!name.trim()) {
       setRepeatBanner(false);
       return;
     }
-    const { data } = await supabase
-      .from("activity_entries")
-      .select("id")
-      .eq("listing_id", id)
-      .ilike("agent_name", name.trim())
-      .limit(1);
-    if (data && data.length > 0) {
+    const isRepeat = await checkRepeatVisit(id, name);
+    if (isRepeat) {
       setRepeatBanner(true);
       setSingleRepeat(true);
     } else {
@@ -298,10 +281,10 @@ export default function ListingDetailPage() {
       entry.buyer_packet_requested = singlePacket;
     }
 
-    const { error } = await supabase.from("activity_entries").insert(entry);
+    const { error } = await createActivityEntry(entry);
 
     if (error) {
-      setSingleError(error.message);
+      setSingleError(error);
     } else {
       resetSingleForm();
       setShowAddEntry(false);
@@ -325,10 +308,10 @@ export default function ListingDetailPage() {
     row.compass_views = compassViewCount === "" ? null : compassViewCount;
     row.logged_by = adminUser?.id ?? null;
 
-    const { error } = await supabase.from("platform_views").insert(row);
+    const { error } = await createPlatformView(row);
 
     if (error) {
-      alert(`Error: ${error.message}`);
+      alert(`Error: ${error}`);
     } else {
       setViewDate(new Date().toISOString().split("T")[0]);
       setZillowViewCount("");
@@ -358,9 +341,9 @@ export default function ListingDetailPage() {
       compass_views: editViewData.compass_views === "" ? null : editViewData.compass_views,
     };
 
-    const { error } = await supabase.from("platform_views").update(updates).eq("id", viewId);
+    const { error } = await updatePlatformView(viewId, updates);
     if (error) {
-      alert(`Error: ${error.message}`);
+      alert(`Error: ${error}`);
     } else {
       setEditingViewId(null);
       await fetchViews();
@@ -370,7 +353,7 @@ export default function ListingDetailPage() {
 
   async function handleDeleteView(viewId: string) {
     if (!confirm("Delete this view entry?")) return;
-    const { error } = await supabase.from("platform_views").delete().eq("id", viewId);
+    const { error } = await deletePlatformView(viewId);
     if (!error) await fetchViews();
   }
 
@@ -404,14 +387,9 @@ export default function ListingDetailPage() {
     setSavingEdit(true);
 
     // Check slug uniqueness
-    const { data: existing } = await supabase
-      .from("listings")
-      .select("id")
-      .eq("slug", editSlug)
-      .neq("id", id)
-      .maybeSingle();
+    const { available } = await checkSlugAvailable(editSlug, id);
 
-    if (existing) {
+    if (!available) {
       setEditError("That slug is already in use.");
       setSavingEdit(false);
       return;
@@ -420,24 +398,18 @@ export default function ListingDetailPage() {
     // Upload photo if provided
     let newPhotoUrl = editPhotoUrl;
     if (editPhotoFile) {
-      const fileExt = editPhotoFile.name.split(".").pop();
-      const filePath = `${editSlug}-${Date.now()}.${fileExt}`;
+      const fd = new FormData();
+      fd.append("file", editPhotoFile);
+      fd.append("slug", editSlug);
+      const { url, error: uploadError } = await uploadPropertyPhoto(fd);
 
-      const { error: uploadError } = await supabase.storage
-        .from("property-photos")
-        .upload(filePath, editPhotoFile);
-
-      if (uploadError) {
-        setEditError(`Photo upload failed: ${uploadError.message}`);
+      if (uploadError || !url) {
+        setEditError(uploadError || "Photo upload failed");
         setSavingEdit(false);
         return;
       }
 
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("property-photos").getPublicUrl(filePath);
-
-      newPhotoUrl = publicUrl;
+      newPhotoUrl = url;
     }
 
     const updateData: Record<string, unknown> = {
@@ -457,13 +429,10 @@ export default function ListingDetailPage() {
     };
     if (newPhotoUrl) updateData.photo_url = newPhotoUrl;
 
-    const { error } = await supabase
-      .from("listings")
-      .update(updateData)
-      .eq("id", id);
+    const { error } = await updateListing(id, updateData);
 
     if (error) {
-      setEditError(`Failed to update: ${error.message}`);
+      setEditError(`Failed to update: ${error}`);
       setSavingEdit(false);
       return;
     }
@@ -478,9 +447,9 @@ export default function ListingDetailPage() {
     if (!window.confirm("Are you sure you want to delete this listing? This cannot be undone.")) return;
     setDeletingListing(true);
 
-    const { error } = await supabase.from("listings").delete().eq("id", id);
+    const { error } = await deleteListingAction(id);
     if (error) {
-      setEditError(`Failed to delete: ${error.message}`);
+      setEditError(`Failed to delete: ${error}`);
       setDeletingListing(false);
       return;
     }
@@ -658,7 +627,7 @@ export default function ListingDetailPage() {
                         <button
                           onClick={async () => {
                             const newVal = !entry.buyer_packet_requested;
-                            await supabase.from("activity_entries").update({ buyer_packet_requested: newVal }).eq("id", entry.id);
+                            await updateActivityEntry(entry.id, { buyer_packet_requested: newVal });
                             await fetchEntries();
                           }}
                           className="inline-flex items-center gap-2 cursor-pointer"
@@ -727,7 +696,7 @@ export default function ListingDetailPage() {
                         <button
                           onClick={async () => {
                             const newVal = !entry.buyer_packet_requested;
-                            await supabase.from("activity_entries").update({ buyer_packet_requested: newVal }).eq("id", entry.id);
+                            await updateActivityEntry(entry.id, { buyer_packet_requested: newVal });
                             await fetchEntries();
                           }}
                           className="inline-flex items-center gap-2 cursor-pointer"
@@ -809,7 +778,7 @@ export default function ListingDetailPage() {
                       type="text"
                       value={singleAgent}
                       onChange={(e) => setSingleAgent(e.target.value)}
-                      onBlur={() => checkRepeatVisit(singleAgent)}
+                      onBlur={() => handleCheckRepeat(singleAgent)}
                       className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
                     />
                   </div>
@@ -943,7 +912,7 @@ export default function ListingDetailPage() {
                   aria-checked={listing.platform_views_public}
                   onClick={async () => {
                     const newVal = !listing.platform_views_public;
-                    const { error } = await supabase.from("listings").update({ platform_views_public: newVal }).eq("id", listing.id);
+                    const { error } = await updateListing(listing.id, { platform_views_public: newVal });
                     if (!error) setListing({ ...listing, platform_views_public: newVal });
                   }}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${listing.platform_views_public ? "bg-green-600" : "bg-gray-300"}`}

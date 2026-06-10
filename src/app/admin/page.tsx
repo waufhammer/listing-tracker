@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { getListings, getShowingCounts } from "@/lib/actions";
 
 type Listing = {
   id: string;
@@ -40,10 +40,7 @@ export default function AdminListingsPage() {
     async function fetchData() {
       setLoading(true);
 
-      const { data: listingsData, error } = await supabase
-        .from("listings")
-        .select("id, client_name, property_address, slug, status, list_date, pending_date")
-        .order("created_at", { ascending: false });
+      const { data: listingsData, error } = await getListings("created_at", false);
 
       if (error) {
         console.error("Error fetching listings:", error);
@@ -54,21 +51,7 @@ export default function AdminListingsPage() {
       const listingsResult = (listingsData ?? []) as Listing[];
       setListings(listingsResult);
 
-      const counts: Record<string, number> = {};
-      await Promise.all(
-        listingsResult.map(async (listing) => {
-          const { count, error: countError } = await supabase
-            .from("activity_entries")
-            .select("id", { count: "exact", head: true })
-            .eq("listing_id", listing.id)
-            .in("type", ["buyer_showing", "agent_preview"]);
-
-          if (!countError && count !== null) {
-            counts[listing.id] = count;
-          }
-        })
-      );
-
+      const counts = await getShowingCounts(listingsResult.map((l) => l.id));
       setShowingCounts(counts);
       setLoading(false);
     }

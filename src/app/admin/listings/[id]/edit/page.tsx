@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
+import { getListingById, checkSlugAvailable, uploadPropertyPhoto, updateListing, deleteListing as deleteListingAction, getListingNotes, createListingNote, deleteListingNote } from "@/lib/actions";
 
 interface Note {
   id: string;
@@ -60,20 +60,14 @@ export default function EditListingPage() {
   }, [id]);
 
   async function fetchNotes() {
-    const { data } = await supabase
-      .from("listing_notes")
-      .select("id, content, created_at")
-      .eq("listing_id", id)
-      .order("created_at", { ascending: true });
+    const { data } = await getListingNotes(id);
     if (data) setNotes(data);
   }
 
   async function handleAddNote() {
     if (!newNote.trim()) return;
     setSavingNote(true);
-    const { error: noteError } = await supabase
-      .from("listing_notes")
-      .insert({ listing_id: id, content: newNote.trim() });
+    const { error: noteError } = await createListingNote(id, newNote.trim());
     if (!noteError) {
       setNewNote("");
       await fetchNotes();
@@ -83,20 +77,13 @@ export default function EditListingPage() {
   }
 
   async function handleDeleteNote(noteId: string) {
-    const { error: deleteErr } = await supabase
-      .from("listing_notes")
-      .delete()
-      .eq("id", noteId);
+    const { error: deleteErr } = await deleteListingNote(noteId);
     if (!deleteErr) setNotes((prev) => prev.filter((n) => n.id !== noteId));
   }
 
   useEffect(() => {
     async function fetchListing() {
-      const { data, error: fetchError } = await supabase
-        .from("listings")
-        .select("*")
-        .eq("id", id)
-        .maybeSingle();
+      const { data, error: fetchError } = await getListingById(id);
 
       if (fetchError || !data) {
         setError("Listing not found.");
@@ -163,14 +150,9 @@ export default function EditListingPage() {
     setSubmitting(true);
 
     // Check slug uniqueness (exclude current listing)
-    const { data: existing } = await supabase
-      .from("listings")
-      .select("id")
-      .eq("slug", slug)
-      .neq("id", id)
-      .maybeSingle();
+    const { available } = await checkSlugAvailable(slug, id);
 
-    if (existing) {
+    if (!available) {
       setError("That slug is already in use. Please choose a different one.");
       setSubmitting(false);
       return;
@@ -179,24 +161,18 @@ export default function EditListingPage() {
     // Upload new photo if provided
     let newPhotoUrl = photoUrl;
     if (photoFile) {
-      const fileExt = photoFile.name.split(".").pop();
-      const filePath = `${slug}-${Date.now()}.${fileExt}`;
+      const fd = new FormData();
+      fd.append("file", photoFile);
+      fd.append("slug", slug);
+      const { url, error: uploadError } = await uploadPropertyPhoto(fd);
 
-      const { error: uploadError } = await supabase.storage
-        .from("property-photos")
-        .upload(filePath, photoFile);
-
-      if (uploadError) {
-        setError(`Photo upload failed: ${uploadError.message}`);
+      if (uploadError || !url) {
+        setError(uploadError || "Photo upload failed");
         setSubmitting(false);
         return;
       }
 
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("property-photos").getPublicUrl(filePath);
-
-      newPhotoUrl = publicUrl;
+      newPhotoUrl = url;
     }
 
     const updateData: Record<string, unknown> = {
@@ -216,13 +192,10 @@ export default function EditListingPage() {
     };
     if (newPhotoUrl) updateData.photo_url = newPhotoUrl;
 
-    const { error: updateError } = await supabase
-      .from("listings")
-      .update(updateData)
-      .eq("id", id);
+    const { error: updateError } = await updateListing(id, updateData);
 
     if (updateError) {
-      setError(`Failed to update listing: ${updateError.message}`);
+      setError(`Failed to update listing: ${updateError}`);
       setSubmitting(false);
       return;
     }
@@ -238,13 +211,10 @@ export default function EditListingPage() {
 
     setDeleting(true);
 
-    const { error: deleteError } = await supabase
-      .from("listings")
-      .delete()
-      .eq("id", id);
+    const { error: deleteError } = await deleteListingAction(id);
 
     if (deleteError) {
-      setError(`Failed to delete listing: ${deleteError.message}`);
+      setError(`Failed to delete listing: ${deleteError}`);
       setDeleting(false);
       return;
     }

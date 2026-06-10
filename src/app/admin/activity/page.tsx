@@ -3,7 +3,7 @@
 import { useState, useEffect, FormEvent, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
+import { getListings, getActivityEntries, checkRepeatVisit, createActivityEntry } from "@/lib/actions";
 import { useAdminUser } from "@/lib/admin-user-context";
 
 interface Listing {
@@ -73,10 +73,7 @@ function ActivityEntryContent() {
   }, [selectedListingId]);
 
   async function fetchListings() {
-    const { data } = await supabase
-      .from("listings")
-      .select("id, property_address, status")
-      .order("property_address");
+    const { data } = await getListings("property_address", true);
     if (data) {
       setListings(data);
       if (!selectedListingId) {
@@ -92,27 +89,18 @@ function ActivityEntryContent() {
 
   async function fetchEntries() {
     setLoading(true);
-    const { data } = await supabase
-      .from("activity_entries")
-      .select("*")
-      .eq("listing_id", selectedListingId)
-      .order("date", { ascending: false });
+    const { data } = await getActivityEntries(selectedListingId);
     if (data) setEntries(data);
     setLoading(false);
   }
 
-  async function checkRepeatVisit(name: string) {
+  async function handleCheckRepeat(name: string) {
     if (!name.trim() || !selectedListingId) {
       setRepeatBanner(false);
       return;
     }
-    const { data } = await supabase
-      .from("activity_entries")
-      .select("id")
-      .eq("listing_id", selectedListingId)
-      .ilike("agent_name", name.trim())
-      .limit(1);
-    if (data && data.length > 0) {
+    const isRepeat = await checkRepeatVisit(selectedListingId, name);
+    if (isRepeat) {
       setRepeatBanner(true);
       setIsRepeatVisit(true);
     } else {
@@ -155,10 +143,10 @@ function ActivityEntryContent() {
       entry.buyer_packet_requested = buyerPacketRequested;
     }
 
-    const { error: insertError } = await supabase.from("activity_entries").insert(entry);
+    const { error: insertError } = await createActivityEntry(entry);
 
     if (insertError) {
-      setError(insertError.message);
+      setError(insertError);
     } else {
       setError("");
       resetForm();
@@ -262,7 +250,7 @@ function ActivityEntryContent() {
                         type="text"
                         value={agentName}
                         onChange={(e) => setAgentName(e.target.value)}
-                        onBlur={() => checkRepeatVisit(agentName)}
+                        onBlur={() => handleCheckRepeat(agentName)}
                         className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
                       />
                     </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import { getListings, getAllActivityEntries } from "@/lib/actions";
 import {
   BarChart,
   Bar,
@@ -148,13 +148,8 @@ export default function AnalyticsPage() {
     setLoading(true);
 
     const [listingsRes, activityRes] = await Promise.all([
-      supabase
-        .from("listings")
-        .select("id, property_address, status, list_date, pending_date, sold_date, list_price, sale_price, offers_received")
-        .order("property_address"),
-      supabase
-        .from("activity_entries")
-        .select("listing_id, type, buyer_packet_requested, open_house_groups"),
+      getListings("property_address", true),
+      getAllActivityEntries(),
     ]);
 
     const listings: Listing[] = (listingsRes.data ?? []) as Listing[];
