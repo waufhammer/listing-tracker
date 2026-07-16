@@ -49,7 +49,6 @@ interface PlatformView {
   zillow_views: number | null;
   redfin_views: number | null;
   compass_views: number | null;
-  logged_by: string | null;
 }
 
 type ActivityType = "Buyer Showing" | "Agent Preview" | "Open House";
@@ -306,8 +305,6 @@ export default function ListingDetailPage() {
     row.zillow_views = zillowViewCount === "" ? null : zillowViewCount;
     row.redfin_views = redfinViewCount === "" ? null : redfinViewCount;
     row.compass_views = compassViewCount === "" ? null : compassViewCount;
-    row.logged_by = adminUser?.id ?? null;
-
     const { error } = await createPlatformView(row);
 
     if (error) {
@@ -1023,9 +1020,6 @@ export default function ListingDetailPage() {
                       <tr key={v.id} className="hover:bg-gray-50">
                         <td className="px-3 sm:px-6 py-3 text-gray-900">
                           {v.date}
-                          {v.logged_by && (
-                            <span className="ml-2 text-xs text-gray-400">{v.logged_by === "will" ? "Will" : "Admin"}</span>
-                          )}
                         </td>
                         <td className="px-3 sm:px-6 py-3">
                             {isEditing ? (
