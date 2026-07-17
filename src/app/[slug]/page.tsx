@@ -161,7 +161,7 @@ export default async function ClientDashboardPage({
     { label: "Buyer Showings", value: buyerShowings.length },
     { label: "Agent Previews", value: agentPreviews.length },
     { label: "Open House Groups", value: totalOpenHouseGroups },
-    { label: "Disclosure Packages", value: disclosureRequests },
+    { label: "Disclosures Sent", value: disclosureRequests },
   ];
 
   // Cumulative activity trend (three lines by date, ascending)
@@ -275,7 +275,7 @@ export default async function ClientDashboardPage({
               <p className="text-2xl font-bold text-gray-900">{totalOpenHouseGroups}</p>
             </div>
             <div className="bg-white border border-gray-100 rounded-xl px-3 py-3">
-              <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">Disclosures</p>
+              <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1">Disclosures Sent</p>
               <p className="text-2xl font-bold text-gray-900">{disclosureRequests}</p>
             </div>
             <div className="bg-white border border-gray-100 rounded-xl px-3 py-3">

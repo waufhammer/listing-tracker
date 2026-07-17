@@ -255,6 +255,16 @@ export async function uploadPropertyPhoto(formData: FormData) {
     return { url: null, error: "File and slug are required" };
   }
 
+  if (!file.type.startsWith("image/")) {
+    return { url: null, error: "File must be an image (JPEG, PNG, HEIC, etc.)" };
+  }
+
+  const maxBytes = 10 * 1024 * 1024;
+  if (file.size > maxBytes) {
+    const mb = (file.size / (1024 * 1024)).toFixed(1);
+    return { url: null, error: `File is too large (${mb} MB). Maximum size is 10 MB.` };
+  }
+
   const fileExt = file.name.split(".").pop();
   const filePath = `${slug}-${Date.now()}.${fileExt}`;
 
@@ -263,7 +273,10 @@ export async function uploadPropertyPhoto(formData: FormData) {
     .upload(filePath, file);
 
   if (uploadError) {
-    return { url: null, error: `Photo upload failed: ${uploadError.message}` };
+    if (uploadError.message.includes("Payload too large") || uploadError.message.includes("413")) {
+      return { url: null, error: "File is too large to upload. Please use an image under 10 MB." };
+    }
+    return { url: null, error: `Upload failed: ${uploadError.message}` };
   }
 
   const {
