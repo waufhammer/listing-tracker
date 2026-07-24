@@ -268,9 +268,14 @@ export async function uploadPropertyPhoto(formData: FormData) {
   const fileExt = file.name.split(".").pop();
   const filePath = `${slug}-${Date.now()}.${fileExt}`;
 
-  const { error: uploadError } = await supabaseAdmin.storage
-    .from("property-photos")
-    .upload(filePath, file);
+  const uploadResult = await Promise.race([
+    supabaseAdmin.storage.from("property-photos").upload(filePath, file),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Upload timed out after 30 seconds. Check that the property-photos storage bucket exists in Supabase.")), 30000)
+    ),
+  ]);
+
+  const { error: uploadError } = uploadResult;
 
   if (uploadError) {
     if (uploadError.message.includes("Payload too large") || uploadError.message.includes("413")) {

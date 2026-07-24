@@ -149,58 +149,61 @@ export default function EditListingPage() {
 
     setSubmitting(true);
 
-    // Check slug uniqueness (exclude current listing)
-    const { available } = await checkSlugAvailable(slug, id);
+    try {
+      // Check slug uniqueness (exclude current listing)
+      const { available } = await checkSlugAvailable(slug, id);
 
-    if (!available) {
-      setError("That slug is already in use. Please choose a different one.");
-      setSubmitting(false);
-      return;
-    }
-
-    // Upload new photo if provided
-    let newPhotoUrl = photoUrl;
-    if (photoFile) {
-      const fd = new FormData();
-      fd.append("file", photoFile);
-      fd.append("slug", slug);
-      const { url, error: uploadError } = await uploadPropertyPhoto(fd);
-
-      if (uploadError || !url) {
-        setError(uploadError || "Photo upload failed");
-        setSubmitting(false);
+      if (!available) {
+        setError("That slug is already in use. Please choose a different one.");
         return;
       }
 
-      newPhotoUrl = url;
-    }
+      // Upload new photo if provided
+      let newPhotoUrl = photoUrl;
+      if (photoFile) {
+        const fd = new FormData();
+        fd.append("file", photoFile);
+        fd.append("slug", slug);
+        const { url, error: uploadError } = await uploadPropertyPhoto(fd);
 
-    const updateData: Record<string, unknown> = {
-      client_name: clientName.trim(),
-      property_address: propertyAddress.trim(),
-      slug,
-      list_date: listDate || null,
-      status,
-      pending_date: pendingDate || null,
-      sold_date: soldDate || null,
-      list_price: listPrice === "" ? null : listPrice,
-      sale_price: salePrice === "" ? null : salePrice,
-      offers_received: offersReceived === "" ? null : offersReceived,
-      zillow_visible: zillowVisible,
-      redfin_visible: redfinVisible,
-      compass_visible: compassVisible,
-    };
-    if (newPhotoUrl) updateData.photo_url = newPhotoUrl;
+        if (uploadError || !url) {
+          setError(uploadError || "Photo upload failed");
+          return;
+        }
 
-    const { error: updateError } = await updateListing(id, updateData);
+        newPhotoUrl = url;
+      }
 
-    if (updateError) {
-      setError(`Failed to update listing: ${updateError}`);
+      const updateData: Record<string, unknown> = {
+        client_name: clientName.trim(),
+        property_address: propertyAddress.trim(),
+        slug,
+        list_date: listDate || null,
+        status,
+        pending_date: pendingDate || null,
+        sold_date: soldDate || null,
+        list_price: listPrice === "" ? null : listPrice,
+        sale_price: salePrice === "" ? null : salePrice,
+        offers_received: offersReceived === "" ? null : offersReceived,
+        zillow_visible: zillowVisible,
+        redfin_visible: redfinVisible,
+        compass_visible: compassVisible,
+      };
+      if (newPhotoUrl) updateData.photo_url = newPhotoUrl;
+
+      const { error: updateError } = await updateListing(id, updateData);
+
+      if (updateError) {
+        setError(`Failed to update listing: ${updateError}`);
+        return;
+      }
+
+      router.push("/admin");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An unexpected error occurred.");
+    } finally {
       setSubmitting(false);
-      return;
     }
-
-    router.push("/admin");
   }
 
   async function handleDelete() {
