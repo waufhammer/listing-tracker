@@ -164,8 +164,9 @@ export default async function ClientDashboardPage({
     { label: "Disclosures Sent", value: disclosureRequests },
   ];
 
-  // Cumulative activity trend (three lines by date, ascending)
+  // Cumulative activity trend — every day on market, carrying forward cumulative totals
   const cumulativeActivity = (() => {
+    if (!listing.list_date) return [];
     const dayMap: Record<string, { showings: number; previews: number; ohGroups: number }> = {};
     entries.forEach((e) => {
       if (!dayMap[e.date]) dayMap[e.date] = { showings: 0, previews: 0, ohGroups: 0 };
@@ -173,9 +174,19 @@ export default async function ClientDashboardPage({
       else if (e.type === "agent_preview") dayMap[e.date].previews++;
       else if (e.type === "open_house") dayMap[e.date].ohGroups += (e.open_house_groups ?? 0);
     });
-    const sorted = Object.entries(dayMap).sort(([a], [b]) => a.localeCompare(b));
+    const start = new Date(listing.list_date + "T00:00:00");
+    const end = listing.pending_date
+      ? new Date(listing.pending_date + "T00:00:00")
+      : new Date();
+    const allDays: string[] = [];
+    const cur = new Date(start);
+    while (cur <= end) {
+      allDays.push(cur.toISOString().split("T")[0]);
+      cur.setDate(cur.getDate() + 1);
+    }
     let cumShowings = 0, cumPreviews = 0, cumOH = 0;
-    return sorted.map(([date, counts]) => {
+    return allDays.map((date) => {
+      const counts = dayMap[date] ?? { showings: 0, previews: 0, ohGroups: 0 };
       cumShowings += counts.showings;
       cumPreviews += counts.previews;
       cumOH += counts.ohGroups;
