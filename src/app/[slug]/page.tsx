@@ -175,6 +175,7 @@ export default async function ClientDashboardPage({
       else if (e.type === "open_house") dayMap[e.date].ohGroups += (e.open_house_groups ?? 0);
     });
     const start = new Date(listing.list_date + "T00:00:00");
+    start.setDate(start.getDate() - 1); // start one day before list date to show zero baseline
     const end = listing.pending_date
       ? new Date(listing.pending_date + "T00:00:00")
       : new Date();

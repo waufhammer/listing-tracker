@@ -52,10 +52,16 @@ export default function PlatformViewsChart({
     );
   }
 
-  // Prepend a zero entry on list date if the earliest data is after it
+  // Prepend a zero entry one day before list date
+  const priorDate = (() => {
+    if (!listDate) return null;
+    const d = new Date(listDate + "T00:00:00");
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().split("T")[0];
+  })();
   const effectiveData =
-    listDate && (data.length === 0 || data[0].date > listDate)
-      ? [{ date: listDate, zillow_views: 0, redfin_views: 0, compass_views: 0 }, ...data]
+    priorDate && (data.length === 0 || data[0].date > priorDate)
+      ? [{ date: priorDate, zillow_views: 0, redfin_views: 0, compass_views: 0 }, ...data]
       : data;
 
   // Auto-detect which platforms have data (if visibility props not provided)
