@@ -157,10 +157,10 @@ const DATE_PRESET_LABELS: Record<DatePreset, string> = {
 
 function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5">
-      <p className="text-sm font-medium text-gray-500">{label}</p>
-      <p className="text-2xl font-semibold text-gray-900 mt-1">{value}</p>
-      {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
+    <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-3">
+      <p className="text-xs font-medium text-gray-500">{label}</p>
+      <p className="text-xl font-semibold text-gray-900 mt-0.5">{value}</p>
+      {sub && <p className="text-xs text-gray-400">{sub}</p>}
     </div>
   );
 }
