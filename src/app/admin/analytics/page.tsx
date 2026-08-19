@@ -167,7 +167,7 @@ function StatCard({ label, value, sub }: { label: string; value: string | number
 
 // ── Sort helpers ─────────────────────────────────────────────────────────────
 
-type SortKey = "property" | "status" | "dom" | "totalGroups" | "disclosurePkgs" | "conversionPct" | "offers" | "listPrice" | "salePrice" | "pctOverUnder";
+type SortKey = "property" | "status" | "dom" | "totalGroups" | "disclosurePkgs" | "conversionPct" | "offers" | "listPrice" | "salePrice" | "pctOverUnder" | "soldDate";
 
 function getSortValue(s: ListingSummary, key: SortKey): number | string | null {
   switch (key) {
@@ -181,6 +181,7 @@ function getSortValue(s: ListingSummary, key: SortKey): number | string | null {
     case "listPrice": return s.listing.list_price;
     case "salePrice": return s.listing.sale_price;
     case "pctOverUnder": return s.pctOverUnder;
+    case "soldDate": return s.listing.sold_date;
   }
 }
 
@@ -517,6 +518,7 @@ export default function AnalyticsPage() {
                   <SortHeader label="Offers" colKey="offers" />
                   <SortHeader label="List Price" colKey="listPrice" className="hidden sm:table-cell" />
                   <SortHeader label="Sale Price" colKey="salePrice" className="hidden sm:table-cell" />
+                  <SortHeader label="Sold Date" colKey="soldDate" className="hidden sm:table-cell" />
                   <SortHeader label="% Over/Under" colKey="pctOverUnder" className="hidden sm:table-cell" />
                 </tr>
               </thead>
@@ -546,6 +548,7 @@ export default function AnalyticsPage() {
                       <td className="px-3 sm:px-4 py-3 text-gray-700">{s.offers}</td>
                       <td className="px-3 sm:px-4 py-3 text-gray-700 hidden sm:table-cell">{formatCurrency(s.listing.list_price)}</td>
                       <td className="px-3 sm:px-4 py-3 text-gray-700 hidden sm:table-cell">{formatCurrency(s.listing.sale_price)}</td>
+                      <td className="px-3 sm:px-4 py-3 text-gray-700 hidden sm:table-cell">{s.listing.sold_date ?? "--"}</td>
                       <td className={`px-3 sm:px-4 py-3 font-medium hidden sm:table-cell ${
                         s.pctOverUnder == null ? "text-gray-400" : s.pctOverUnder >= 0 ? "text-green-700" : "text-red-600"
                       }`}>
