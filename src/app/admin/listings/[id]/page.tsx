@@ -25,6 +25,7 @@ interface Listing {
   list_price: number | null;
   sale_price: number | null;
   offers_received: number | null;
+  property_type: string | null;
 }
 
 interface ActivityEntry {
@@ -163,6 +164,7 @@ export default function ListingDetailPage() {
   const [editPhotoFile, setEditPhotoFile] = useState<File | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [deletingListing, setDeletingListing] = useState(false);
+  const [editPropertyType, setEditPropertyType] = useState('');
   const [editError, setEditError] = useState("");
 
   // ── Data fetching ──────────────────────────────────────────────────────
@@ -192,6 +194,7 @@ export default function ListingDetailPage() {
     setEditRedfin(data.redfin_visible ?? false);
     setEditCompass(data.compass_visible ?? false);
     setEditPhotoUrl(data.photo_url ?? null);
+    setEditPropertyType(data.property_type ?? '');
   }
 
   async function fetchEntries() {
@@ -420,6 +423,7 @@ export default function ListingDetailPage() {
       zillow_visible: editZillow,
       redfin_visible: editRedfin,
       compass_visible: editCompass,
+      property_type: editPropertyType || null,
       list_price: editListPrice === "" ? null : editListPrice,
       sale_price: editSalePrice === "" ? null : editSalePrice,
       offers_received: editOffersReceived === "" ? null : editOffersReceived,
@@ -1144,6 +1148,23 @@ export default function ListingDetailPage() {
                   onChange={(e) => setEditListDate(e.target.value)}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
                 />
+              </div>
+
+              {/* Property Type */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Property Type
+                </label>
+                <select
+                  value={editPropertyType}
+                  onChange={(e) => setEditPropertyType(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                >
+                  <option value="">— Select type —</option>
+                  <option value="single_family">Single Family</option>
+                  <option value="condo">Condo</option>
+                  <option value="townhome">Townhome</option>
+                </select>
               </div>
 
               {/* Status */}

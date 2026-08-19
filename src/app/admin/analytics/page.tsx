@@ -24,6 +24,7 @@ interface Listing {
   list_price: number | null;
   sale_price: number | null;
   offers_received: number | null;
+  property_type: string | null;
 }
 
 interface ActivityEntry {
@@ -31,6 +32,7 @@ interface ActivityEntry {
   type: string;
   buyer_packet_requested: boolean;
   open_house_groups: number | null;
+  date: string;
 }
 
 interface ListingSummary {
@@ -44,6 +46,9 @@ interface ListingSummary {
   offersToDisclosuresPct: number | null;
   pctOverUnder: number | null;
 }
+
+type DatePreset = 'all' | 'ytd' | 'last-year' | 'last-30' | 'last-90' | 'custom';
+type PropTypeFilter = 'all' | 'single_family' | 'condo' | 'townhome';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -70,14 +75,57 @@ function formatPct(value: number | null): string {
   return `${sign}${value.toFixed(1)}%`;
 }
 
+function getDateRange(preset: DatePreset, customFrom: string, customTo: string): { from: string | null; to: string | null } {
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  switch (preset) {
+    case 'all': return { from: null, to: null };
+    case 'ytd': return { from: `${today.getFullYear()}-01-01`, to: todayStr };
+    case 'last-year': {
+      const y = today.getFullYear() - 1;
+      return { from: `${y}-01-01`, to: `${y}-12-31` };
+    }
+    case 'last-30': {
+      const d = new Date(today); d.setDate(d.getDate() - 30);
+      return { from: d.toISOString().split('T')[0], to: todayStr };
+    }
+    case 'last-90': {
+      const d = new Date(today); d.setDate(d.getDate() - 90);
+      return { from: d.toISOString().split('T')[0], to: todayStr };
+    }
+    case 'custom': return { from: customFrom || null, to: customTo || null };
+  }
+}
+
+function computeVelocity(listing: Listing, entries: ActivityEntry[]): { week: string; groups: number }[] {
+  if (!listing.list_date) return [];
+  const listDate = new Date(listing.list_date);
+  const relevant = entries.filter(
+    e => e.listing_id === listing.id && (e.type === 'buyer_showing' || e.type === 'open_house')
+  );
+  const byWeek: Record<number, number> = {};
+  for (const e of relevant) {
+    if (!e.date) continue;
+    const dayDiff = Math.floor((new Date(e.date).getTime() - listDate.getTime()) / 86400000);
+    if (dayDiff < 0) continue;
+    const week = Math.floor(dayDiff / 7) + 1;
+    const groups = e.type === 'buyer_showing' ? 1 : (e.open_house_groups ?? 0);
+    byWeek[week] = (byWeek[week] ?? 0) + groups;
+  }
+  if (Object.keys(byWeek).length === 0) return [];
+  const maxWeek = Math.max(...Object.keys(byWeek).map(Number));
+  return Array.from({ length: maxWeek }, (_, i) => ({
+    week: `Wk ${i + 1}`,
+    groups: byWeek[i + 1] ?? 0,
+  }));
+}
+
 const statusColor: Record<string, string> = {
   prepping: "bg-blue-100 text-blue-800",
   active: "bg-green-100 text-green-800",
   pending: "bg-amber-100 text-amber-800",
   sold: "bg-red-100 text-red-800",
 };
-
-const STATUS_FILTERS = ["all", "active", "pending", "sold"] as const;
 
 const tooltipStyle = {
   backgroundColor: "#fff",
@@ -88,6 +136,22 @@ const tooltipStyle = {
 };
 
 const axisTickStyle = { fontSize: 12, fill: "#6b7280" };
+
+const PROP_TYPE_LABELS: Record<PropTypeFilter, string> = {
+  all: "All",
+  single_family: "Single Family",
+  condo: "Condo",
+  townhome: "Townhome",
+};
+
+const DATE_PRESET_LABELS: Record<DatePreset, string> = {
+  all: "All Time",
+  ytd: "YTD",
+  "last-year": "Last Year",
+  "last-30": "Last 30",
+  "last-90": "Last 90",
+  custom: "Custom",
+};
 
 // ── Stat Card ────────────────────────────────────────────────────────────────
 
@@ -134,11 +198,20 @@ function compareSummaries(a: ListingSummary, b: ListingSummary, key: SortKey, di
 
 export default function AnalyticsPage() {
   const [summaries, setSummaries] = useState<ListingSummary[]>([]);
+  const [allEntries, setAllEntries] = useState<ActivityEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedListingId, setSelectedListingId] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("property");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  // Filters
+  const [datePreset, setDatePreset] = useState<DatePreset>('all');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
+  const [activeStatuses, setActiveStatuses] = useState<Set<string>>(
+    () => new Set(['prepping', 'active', 'pending', 'sold'])
+  );
+  const [propTypeFilter, setPropTypeFilter] = useState<PropTypeFilter>('all');
 
   useEffect(() => {
     fetchData();
@@ -154,6 +227,8 @@ export default function AnalyticsPage() {
 
     const listings: Listing[] = (listingsRes.data ?? []) as Listing[];
     const activities: ActivityEntry[] = (activityRes.data ?? []) as ActivityEntry[];
+
+    setAllEntries(activities);
 
     const computed = listings.map((listing) => {
       const entries = activities.filter((a) => a.listing_id === listing.id);
@@ -192,15 +267,33 @@ export default function AnalyticsPage() {
     }
   }
 
-  const filtered = summaries.filter(
-    (s) => statusFilter === "all" || s.listing.status === statusFilter
-  );
+  function toggleStatus(status: string) {
+    setActiveStatuses(prev => {
+      const next = new Set(prev);
+      if (next.has(status)) {
+        next.delete(status);
+      } else {
+        next.add(status);
+      }
+      return next;
+    });
+  }
+
+  const { from: dateFrom, to: dateTo } = getDateRange(datePreset, customFrom, customTo);
+
+  const filtered = summaries.filter(s => {
+    if (!activeStatuses.has(s.listing.status)) return false;
+    if (propTypeFilter !== 'all' && (s.listing.property_type ?? '') !== propTypeFilter) return false;
+    if (dateFrom && s.listing.list_date && s.listing.list_date < dateFrom) return false;
+    if (dateTo && s.listing.list_date && s.listing.list_date > dateTo) return false;
+    return true;
+  });
 
   const sorted = [...filtered].sort((a, b) => compareSummaries(a, b, sortKey, sortDir));
 
   const selected = summaries.find((s) => s.listing.id === selectedListingId) ?? null;
 
-  // Aggregate stats for all filtered listings
+  // Aggregate stats for filtered listings
   const aggTotalGroups = filtered.reduce((sum, s) => sum + s.totalGroups, 0);
   const aggDisclosures = filtered.reduce((sum, s) => sum + s.disclosurePkgs, 0);
   const aggOffers = filtered.reduce((sum, s) => sum + s.offers, 0);
@@ -208,20 +301,27 @@ export default function AnalyticsPage() {
   const aggOffersToGroups = aggTotalGroups > 0 ? (aggOffers / aggTotalGroups) * 100 : null;
   const aggOffersToDisc = aggDisclosures > 0 ? (aggOffers / aggDisclosures) * 100 : null;
 
-  // Sold-only benchmarks
-  const soldListings = summaries.filter((s) => s.listing.status === "sold");
-  const soldCount = soldListings.length;
+  // Sold benchmarks — always sold, but respects date range + property type (not status checkboxes)
+  const soldForBenchmarks = summaries.filter(s => {
+    if (s.listing.status !== 'sold') return false;
+    if (propTypeFilter !== 'all' && (s.listing.property_type ?? '') !== propTypeFilter) return false;
+    if (dateFrom && s.listing.list_date && s.listing.list_date < dateFrom) return false;
+    if (dateTo && s.listing.list_date && s.listing.list_date > dateTo) return false;
+    return true;
+  });
+  const soldCount = soldForBenchmarks.length;
   const avgDom = soldCount > 0
-    ? soldListings.reduce((sum, s) => sum + (s.dom ?? 0), 0) / soldCount
+    ? soldForBenchmarks.reduce((sum, s) => sum + (s.dom ?? 0), 0) / soldCount
     : null;
-  const avgPctOver = soldCount > 0
-    ? soldListings.filter((s) => s.pctOverUnder != null).reduce((sum, s) => sum + s.pctOverUnder!, 0) / (soldListings.filter((s) => s.pctOverUnder != null).length || 1)
+  const soldWithPct = soldForBenchmarks.filter(s => s.pctOverUnder != null);
+  const avgPctOver = soldWithPct.length > 0
+    ? soldWithPct.reduce((sum, s) => sum + s.pctOverUnder!, 0) / soldWithPct.length
     : null;
   const avgOffers = soldCount > 0
-    ? soldListings.reduce((sum, s) => sum + s.offers, 0) / soldCount
+    ? soldForBenchmarks.reduce((sum, s) => sum + s.offers, 0) / soldCount
     : null;
   const avgGroups = soldCount > 0
-    ? soldListings.reduce((sum, s) => sum + s.totalGroups, 0) / soldCount
+    ? soldForBenchmarks.reduce((sum, s) => sum + s.totalGroups, 0) / soldCount
     : null;
 
   const aggFunnelData = [
@@ -266,21 +366,92 @@ export default function AnalyticsPage() {
     <div className="max-w-6xl">
       <h2 className="text-2xl font-semibold text-gray-900 mb-6">Analytics</h2>
 
-      {/* Status filter pills */}
-      <div className="flex gap-2 mb-6">
-        {STATUS_FILTERS.map((f) => (
-          <button
-            key={f}
-            onClick={() => setStatusFilter(f)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              statusFilter === f
-                ? "bg-green-600 text-white"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-            }`}
-          >
-            {f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1)}
-          </button>
-        ))}
+      {/* ── Filters ── */}
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4 mb-6 space-y-4">
+        {/* Date range */}
+        <div>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Date Range</p>
+          <div className="flex flex-wrap gap-2">
+            {(Object.keys(DATE_PRESET_LABELS) as DatePreset[]).map(preset => (
+              <button
+                key={preset}
+                onClick={() => setDatePreset(preset)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  datePreset === preset
+                    ? "bg-green-600 text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                {DATE_PRESET_LABELS[preset]}
+              </button>
+            ))}
+          </div>
+          {datePreset === 'custom' && (
+            <div className="flex items-center gap-3 mt-3">
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-600">From</label>
+                <input
+                  type="date"
+                  value={customFrom}
+                  onChange={e => setCustomFrom(e.target.value)}
+                  className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-600">To</label>
+                <input
+                  type="date"
+                  value={customTo}
+                  onChange={e => setCustomTo(e.target.value)}
+                  className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Status */}
+        <div>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Status</p>
+          <div className="flex flex-wrap gap-4">
+            {[
+              { value: 'prepping', label: 'Preparing to List' },
+              { value: 'active', label: 'Active' },
+              { value: 'pending', label: 'Pending' },
+              { value: 'sold', label: 'Sold' },
+            ].map(({ value, label }) => (
+              <label key={value} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={activeStatuses.has(value)}
+                  onChange={() => toggleStatus(value)}
+                  className="rounded border-gray-300 text-green-600 focus:ring-green-600"
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Property type */}
+        <div>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Property Type</p>
+          <div className="flex flex-wrap gap-2">
+            {(Object.keys(PROP_TYPE_LABELS) as PropTypeFilter[]).map(pt => (
+              <button
+                key={pt}
+                onClick={() => setPropTypeFilter(pt)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  propTypeFilter === pt
+                    ? "bg-green-600 text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                {PROP_TYPE_LABELS[pt]}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Aggregate funnel — all filtered listings */}
@@ -329,7 +500,7 @@ export default function AnalyticsPage() {
       {/* Cross-listing summary table */}
       {sorted.length === 0 ? (
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-12 text-center text-gray-400">
-          No listings found
+          No listings match the current filters
         </div>
       ) : (
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden mb-8">
@@ -457,6 +628,29 @@ export default function AnalyticsPage() {
               </div>
             </div>
           </div>
+
+          {/* Activity velocity chart */}
+          {(() => {
+            const velocityData = computeVelocity(selected.listing, allEntries);
+            if (velocityData.length === 0) return null;
+            return (
+              <div className="mt-6 bg-white border border-gray-200 rounded-xl shadow-sm p-4 sm:p-6">
+                <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-4">
+                  Activity by Week
+                  <span className="ml-2 text-xs font-normal text-gray-400 normal-case">groups from list date</span>
+                </h4>
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={velocityData} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="week" tick={axisTickStyle} tickLine={false} axisLine={{ stroke: "#e5e7eb" }} />
+                    <YAxis tick={axisTickStyle} tickLine={false} axisLine={{ stroke: "#e5e7eb" }} allowDecimals={false} />
+                    <Tooltip contentStyle={tooltipStyle} formatter={(v) => [v, "Groups"]} />
+                    <Bar dataKey="groups" fill="#00B04F" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>

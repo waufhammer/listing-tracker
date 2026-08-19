@@ -41,6 +41,7 @@ export default function NewListingPage() {
   const [zillowVisible, setZillowVisible] = useState(false);
   const [redfinVisible, setRedfinVisible] = useState(false);
   const [compassVisible, setCompassVisible] = useState(false);
+  const [propertyType, setPropertyType] = useState('');
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -125,6 +126,7 @@ export default function NewListingPage() {
       zillow_visible: zillowVisible,
       redfin_visible: redfinVisible,
       compass_visible: compassVisible,
+      property_type: propertyType || null,
     };
     if (photoUrl) listingData.photo_url = photoUrl;
 
@@ -240,6 +242,24 @@ export default function NewListingPage() {
                 onChange={(e) => setListDate(e.target.value)}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
               />
+            </div>
+
+            {/* Property Type */}
+            <div>
+              <label htmlFor="property_type" className="block text-sm font-medium text-gray-700 mb-1">
+                Property Type
+              </label>
+              <select
+                id="property_type"
+                value={propertyType}
+                onChange={(e) => setPropertyType(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+              >
+                <option value="">— Select type —</option>
+                <option value="single_family">Single Family</option>
+                <option value="condo">Condo</option>
+                <option value="townhome">Townhome</option>
+              </select>
             </div>
 
             {/* Status */}
