@@ -9,6 +9,7 @@ import { AdminUserProvider, useAdminUserContext } from "@/lib/admin-user-context
 const navItems = [
   { label: "Listings", href: "/admin" },
   { label: "Analytics", href: "/admin/analytics" },
+  { label: "Showing Verification", href: "/admin/showing-verification" },
 ];
 
 function NavContent({
