@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getListings, getShowingCounts } from "@/lib/actions";
+import { effectiveDaysOnMarket } from "@/lib/days-on-market";
 
 type Listing = {
   id: string;
@@ -13,6 +14,9 @@ type Listing = {
   status: string;
   list_date: string | null;
   pending_date: string | null;
+  first_look: boolean;
+  first_look_started_at: string | null;
+  first_look_days_banked: number | null;
 };
 
 const COLUMNS = [
@@ -21,14 +25,6 @@ const COLUMNS = [
   { key: "pending", label: "Pending", color: "border-amber-400", bg: "bg-amber-50", badge: "bg-amber-100 text-amber-800" },
   { key: "sold", label: "Sold", color: "border-red-400", bg: "bg-red-50", badge: "bg-red-100 text-red-800" },
 ];
-
-function daysOnMarket(listDate: string | null, pendingDate?: string | null): number | null {
-  if (!listDate) return null;
-  const start = new Date(listDate);
-  const end = pendingDate ? new Date(pendingDate) : new Date();
-  const diff = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-  return diff >= 0 ? diff : null;
-}
 
 export default function AdminListingsPage() {
   const router = useRouter();
@@ -105,7 +101,7 @@ export default function AdminListingsPage() {
                   </div>
                 ) : (
                   colListings.map((listing) => {
-                    const dom = daysOnMarket(listing.list_date, listing.pending_date);
+                    const dom = effectiveDaysOnMarket(listing);
                     const showings = showingCounts[listing.id] ?? 0;
 
                     return (
@@ -117,8 +113,13 @@ export default function AdminListingsPage() {
                         <p className="text-sm font-semibold text-gray-900 group-hover:text-green-700 transition-colors leading-snug">
                           {listing.property_address}
                         </p>
-                        <p className="text-xs text-gray-400 mt-1">
+                        <p className="text-xs text-gray-400 mt-1 flex items-center gap-1.5">
                           {listing.client_name}
+                          {listing.first_look && (
+                            <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium bg-purple-100 text-purple-800">
+                              First Look
+                            </span>
+                          )}
                         </p>
 
                         {/* Meta row */}

@@ -15,3 +15,6 @@ change in the dashboard.
   `showing_magic_links` tables for the automated showing-verification
   feature. See `/Users/willaufhammer/Downloads/showing-verification-prd.md`
   for the feature spec.
+- `0002_first_look.sql` — adds `first_look`, `first_look_started_at`,
+  `first_look_days_banked` columns to `listings` for NWMLS First Look
+  tracking (excludes First Look days from days-on-market).
