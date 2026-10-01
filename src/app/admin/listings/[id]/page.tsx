@@ -3,8 +3,10 @@
 import { useState, useEffect, FormEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { getListingById, getActivityEntries, getPlatformViews, checkRepeatVisit, createActivityEntry, updateActivityEntry, createPlatformView, updatePlatformView, deletePlatformView, checkSlugAvailable, uploadPropertyPhoto, updateListing, deleteListing as deleteListingAction } from "@/lib/actions";
+import { getListingById, getActivityEntries, getPlatformViews, checkRepeatVisit, createActivityEntry, updateActivityEntry, createPlatformView, updatePlatformView, deletePlatformView, checkSlugAvailable, updateListing, deleteListing as deleteListingAction } from "@/lib/actions";
 import { useAdminUser } from "@/lib/admin-user-context";
+import { uploadPhotoWithTimeout } from "@/lib/upload-with-timeout";
+import { effectiveDaysOnMarket, firstLookExcludedDays } from "@/lib/days-on-market";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -21,6 +23,9 @@ interface Listing {
   redfin_visible: boolean;
   compass_visible: boolean;
   platform_views_public: boolean;
+  first_look: boolean;
+  first_look_started_at: string | null;
+  first_look_days_banked: number | null;
   photo_url: string | null;
   list_price: number | null;
   sale_price: number | null;
@@ -87,16 +92,6 @@ const statusColor: Record<string, string> = {
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-function daysOnMarket(listDate: string | null, pendingDate?: string | null): number | null {
-  if (!listDate) return null;
-  const start = new Date(listDate);
-  const end = pendingDate ? new Date(pendingDate) : new Date();
-  const diff = Math.floor(
-    (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)
-  );
-  return diff >= 0 ? diff : null;
-}
 
 function isValidSlug(slug: string): boolean {
   return /^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug);
@@ -222,13 +217,29 @@ export default function ListingDetailPage() {
   const buyerShowingCount = entries.filter((e) => e.type === "buyer_showing").length;
   const agentPreviewCount = entries.filter((e) => e.type === "agent_preview").length;
   const openHouseCount = entries.filter((e) => e.type === "open_house").length;
-  const dom = listing ? daysOnMarket(listing.list_date, listing.pending_date) : null;
+  const dom = listing ? effectiveDaysOnMarket(listing) : null;
 
   const latestView = views.length > 0 ? views[0] : null;
   const totalPlatformViews =
     (latestView?.zillow_views ?? 0) +
     (latestView?.redfin_views ?? 0) +
     (latestView?.compass_views ?? 0);
+
+  // ── First Look toggle ───────────────────────────────────────────────────
+
+  async function handleToggleFirstLook() {
+    if (!listing) return;
+    const turningOn = !listing.first_look;
+    const update = turningOn
+      ? { first_look: true, first_look_started_at: new Date().toISOString() }
+      : {
+          first_look: false,
+          first_look_started_at: null,
+          first_look_days_banked: firstLookExcludedDays(listing),
+        };
+    const { error } = await updateListing(listing.id, update);
+    if (!error) setListing({ ...listing, ...update });
+  }
 
   // ── Single entry handlers ──────────────────────────────────────────────
 
@@ -384,64 +395,72 @@ export default function ListingDetailPage() {
       return;
     }
 
+    if (savingEdit) return;
     setSavingEdit(true);
 
-    // Check slug uniqueness
-    const { available } = await checkSlugAvailable(editSlug, id);
+    try {
+      // Check slug uniqueness
+      const { available } = await checkSlugAvailable(editSlug, id);
 
-    if (!available) {
-      setEditError("That slug is already in use.");
-      setSavingEdit(false);
-      return;
-    }
-
-    // Upload photo if provided
-    let newPhotoUrl = editPhotoUrl;
-    if (editPhotoFile) {
-      const fd = new FormData();
-      fd.append("file", editPhotoFile);
-      fd.append("slug", editSlug);
-      const { url, error: uploadError } = await uploadPropertyPhoto(fd);
-
-      if (uploadError || !url) {
-        setEditError(uploadError || "Photo upload failed");
-        setSavingEdit(false);
+      if (!available) {
+        setEditError("That slug is already in use.");
         return;
       }
 
-      newPhotoUrl = url;
-    }
+      // Upload photo if provided
+      let newPhotoUrl = editPhotoUrl;
+      if (editPhotoFile) {
+        const { url, error: uploadError } = await uploadPhotoWithTimeout(editPhotoFile, editSlug);
 
-    const updateData: Record<string, unknown> = {
-      client_name: editClientName.trim(),
-      property_address: editAddress.trim(),
-      slug: editSlug,
-      list_date: editListDate || null,
-      status: editStatus,
-      pending_date: editPendingDate || null,
-      sold_date: editSoldDate || null,
-      zillow_visible: editZillow,
-      redfin_visible: editRedfin,
-      compass_visible: editCompass,
-      property_type: editPropertyType || null,
-      list_price: editListPrice === "" ? null : editListPrice,
-      sale_price: editSalePrice === "" ? null : editSalePrice,
-      offers_received: editOffersReceived === "" ? null : editOffersReceived,
-    };
-    if (newPhotoUrl) updateData.photo_url = newPhotoUrl;
+        if (uploadError || !url) {
+          setEditError(uploadError || "Photo upload failed");
+          return;
+        }
 
-    const { error } = await updateListing(id, updateData);
+        newPhotoUrl = url;
+      }
 
-    if (error) {
-      setEditError(`Failed to update: ${error}`);
+      const updateData: Record<string, unknown> = {
+        client_name: editClientName.trim(),
+        property_address: editAddress.trim(),
+        slug: editSlug,
+        list_date: editListDate || null,
+        status: editStatus,
+        pending_date: editPendingDate || null,
+        sold_date: editSoldDate || null,
+        zillow_visible: editZillow,
+        redfin_visible: editRedfin,
+        compass_visible: editCompass,
+        property_type: editPropertyType || null,
+        list_price: editListPrice === "" ? null : editListPrice,
+        sale_price: editSalePrice === "" ? null : editSalePrice,
+        offers_received: editOffersReceived === "" ? null : editOffersReceived,
+      };
+      if (newPhotoUrl) updateData.photo_url = newPhotoUrl;
+
+      // First Look only makes sense for Active listings — bank its days and
+      // turn it off if the listing is moving to another status.
+      if (editStatus !== "active" && listing?.first_look) {
+        updateData.first_look = false;
+        updateData.first_look_started_at = null;
+        updateData.first_look_days_banked = firstLookExcludedDays(listing);
+      }
+
+      const { error } = await updateListing(id, updateData);
+
+      if (error) {
+        setEditError(`Failed to update: ${error}`);
+        return;
+      }
+
+      setEditPhotoFile(null);
+      await fetchListing();
+      setShowEditListing(false);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : "An unexpected error occurred.");
+    } finally {
       setSavingEdit(false);
-      return;
     }
-
-    setSavingEdit(false);
-    setEditPhotoFile(null);
-    await fetchListing();
-    setShowEditListing(false);
   }
 
   async function handleDeleteListing() {
@@ -491,15 +510,35 @@ export default function ListingDetailPage() {
         <h1 className="text-2xl font-bold text-gray-900">
           {listing.property_address}
         </h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <p className="text-sm text-gray-500 mt-1 flex items-center flex-wrap gap-2">
           {listing.client_name}
           <span
-            className={`ml-3 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${
+            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${
               statusColor[listing.status] ?? "bg-gray-100 text-gray-800"
             }`}
           >
             {listing.status}
           </span>
+          {listing.first_look && listing.status !== "active" && (
+            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-purple-100 text-purple-800">
+              First Look
+            </span>
+          )}
+          {listing.status === "active" && (
+            <label className="ml-1 flex items-center gap-1.5 text-xs text-gray-400">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={listing.first_look}
+                onClick={handleToggleFirstLook}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${listing.first_look ? "bg-purple-600" : "bg-gray-300"}`}
+                title={listing.first_look ? "Turn off First Look" : "Turn on First Look"}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${listing.first_look ? "translate-x-6" : "translate-x-1"}`} />
+              </button>
+              First Look
+            </label>
+          )}
         </p>
       </div>
 

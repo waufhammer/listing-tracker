@@ -6,6 +6,7 @@ import ActivitySummaryChart from "@/components/ActivitySummaryChart";
 import ActivityLog from "@/components/ActivityLog";
 import CumulativeActivityChart from "@/components/CumulativeActivityChart";
 import PageViewTracker from "@/components/PageViewTracker";
+import { effectiveDaysOnMarket } from "@/lib/days-on-market";
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
@@ -27,12 +28,6 @@ interface ActivityEntry {
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
-
-function daysOnMarket(listDate: string, pendingDate?: string | null): number {
-  const start = new Date(listDate + "T00:00:00");
-  const end = pendingDate ? new Date(pendingDate + "T00:00:00") : new Date();
-  return Math.max(0, Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
-}
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
@@ -118,7 +113,7 @@ export default async function ClientDashboardPage({
 
   // ── Compute stats ─────────────────────────────────────────────────────
 
-  const dom = listing.list_date ? daysOnMarket(listing.list_date, listing.pending_date) : 0;
+  const dom = effectiveDaysOnMarket(listing) ?? 0;
 
   const buyerShowings = entries.filter((e) => e.type === "buyer_showing");
   const agentPreviews = entries.filter((e) => e.type === "agent_preview");
@@ -196,6 +191,9 @@ export default async function ClientDashboardPage({
   })();
 
   const status = statusConfig[listing.status] ?? null;
+  const statusLabel = status && listing.status === "active" && listing.first_look
+    ? "Active - First Look"
+    : status?.label;
 
   // ── Render ────────────────────────────────────────────────────────────
 
@@ -239,7 +237,7 @@ export default async function ClientDashboardPage({
             <div className="flex flex-wrap items-center gap-3">
               {status && (
                 <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold tracking-wide uppercase ${status.bg} ${status.text} border ${status.border}`}>
-                  {status.label}
+                  {statusLabel}
                 </span>
               )}
               {listing.list_date && (
