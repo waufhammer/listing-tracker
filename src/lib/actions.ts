@@ -246,6 +246,8 @@ export async function deleteListingNote(id: string) {
 
 // ── Storage ─────────────────────────────────────────────────────────────────
 
+const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "gif", "webp", "heic", "heif"];
+
 export async function uploadPropertyPhoto(formData: FormData) {
   await requireAdmin();
   const file = formData.get("file") as File;
@@ -255,7 +257,12 @@ export async function uploadPropertyPhoto(formData: FormData) {
     return { url: null, error: "File and slug are required" };
   }
 
-  if (!file.type.startsWith("image/")) {
+  // Some mobile browsers report an empty type for HEIC/HEIF photos, so fall
+  // back to checking the file extension before rejecting it.
+  const fileExt = (file.name.split(".").pop() || "").toLowerCase();
+  const looksLikeImage =
+    file.type.startsWith("image/") || IMAGE_EXTENSIONS.includes(fileExt);
+  if (!looksLikeImage) {
     return { url: null, error: "File must be an image (JPEG, PNG, HEIC, etc.)" };
   }
 
@@ -265,28 +272,32 @@ export async function uploadPropertyPhoto(formData: FormData) {
     return { url: null, error: `File is too large (${mb} MB). Maximum size is 10 MB.` };
   }
 
-  const fileExt = file.name.split(".").pop();
   const filePath = `${slug}-${Date.now()}.${fileExt}`;
 
-  const uploadResult = await Promise.race([
-    supabaseAdmin.storage.from("property-photos").upload(filePath, file),
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Upload timed out after 30 seconds. Check that the property-photos storage bucket exists in Supabase.")), 30000)
-    ),
-  ]);
+  try {
+    const { error: uploadError } = await Promise.race([
+      supabaseAdmin.storage.from("property-photos").upload(filePath, file),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Upload timed out after 30 seconds. Check that the property-photos storage bucket exists in Supabase.")), 30000)
+      ),
+    ]);
 
-  const { error: uploadError } = uploadResult;
-
-  if (uploadError) {
-    if (uploadError.message.includes("Payload too large") || uploadError.message.includes("413")) {
-      return { url: null, error: "File is too large to upload. Please use an image under 10 MB." };
+    if (uploadError) {
+      if (uploadError.message.includes("Payload too large") || uploadError.message.includes("413")) {
+        return { url: null, error: "File is too large to upload. Please use an image under 10 MB." };
+      }
+      return { url: null, error: `Upload failed: ${uploadError.message}` };
     }
-    return { url: null, error: `Upload failed: ${uploadError.message}` };
+
+    const {
+      data: { publicUrl },
+    } = supabaseAdmin.storage.from("property-photos").getPublicUrl(filePath);
+
+    return { url: publicUrl, error: null };
+  } catch (err) {
+    return {
+      url: null,
+      error: err instanceof Error ? err.message : "Upload failed unexpectedly",
+    };
   }
-
-  const {
-    data: { publicUrl },
-  } = supabaseAdmin.storage.from("property-photos").getPublicUrl(filePath);
-
-  return { url: publicUrl, error: null };
 }

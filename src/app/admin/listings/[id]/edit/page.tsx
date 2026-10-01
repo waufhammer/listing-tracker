@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
-import { getListingById, checkSlugAvailable, uploadPropertyPhoto, updateListing, deleteListing as deleteListingAction, getListingNotes, createListingNote, deleteListingNote } from "@/lib/actions";
+import { getListingById, checkSlugAvailable, updateListing, deleteListing as deleteListingAction, getListingNotes, createListingNote, deleteListingNote } from "@/lib/actions";
+import { uploadPhotoWithTimeout } from "@/lib/upload-with-timeout";
 
 interface Note {
   id: string;
@@ -147,6 +148,7 @@ export default function EditListingPage() {
       return;
     }
 
+    if (submitting) return;
     setSubmitting(true);
 
     try {
@@ -161,10 +163,7 @@ export default function EditListingPage() {
       // Upload new photo if provided
       let newPhotoUrl = photoUrl;
       if (photoFile) {
-        const fd = new FormData();
-        fd.append("file", photoFile);
-        fd.append("slug", slug);
-        const { url, error: uploadError } = await uploadPropertyPhoto(fd);
+        const { url, error: uploadError } = await uploadPhotoWithTimeout(photoFile, slug);
 
         if (uploadError || !url) {
           setError(uploadError || "Photo upload failed");

@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { checkSlugAvailable, createListing, uploadPropertyPhoto } from "@/lib/actions";
+import { checkSlugAvailable, createListing } from "@/lib/actions";
+import { uploadPhotoWithTimeout } from "@/lib/upload-with-timeout";
 
 const STATUS_OPTIONS = [
   { value: "prepping", label: "Preparing to List" },
@@ -83,62 +84,63 @@ export default function NewListingPage() {
       return;
     }
 
+    if (submitting) return;
     setSubmitting(true);
 
-    // Check slug uniqueness
-    const { available } = await checkSlugAvailable(slug);
+    try {
+      // Check slug uniqueness
+      const { available } = await checkSlugAvailable(slug);
 
-    if (!available) {
-      setError("That slug is already in use. Please choose a different one.");
-      setSubmitting(false);
-      return;
-    }
-
-    // Upload photo if provided
-    let photoUrl: string | null = null;
-    if (photoFile) {
-      const fd = new FormData();
-      fd.append("file", photoFile);
-      fd.append("slug", slug);
-      const { url, error: uploadError } = await uploadPropertyPhoto(fd);
-
-      if (uploadError || !url) {
-        setError(uploadError || "Photo upload failed");
-        setSubmitting(false);
+      if (!available) {
+        setError("That slug is already in use. Please choose a different one.");
         return;
       }
 
-      photoUrl = url;
-    }
+      // Upload photo if provided
+      let photoUrl: string | null = null;
+      if (photoFile) {
+        const { url, error: uploadError } = await uploadPhotoWithTimeout(photoFile, slug);
 
-    // Insert listing
-    const listingData: Record<string, unknown> = {
-      client_name: clientName.trim(),
-      property_address: propertyAddress.trim(),
-      slug,
-      list_date: listDate || null,
-      status,
-      pending_date: pendingDate || null,
-      sold_date: soldDate || null,
-      list_price: listPrice === "" ? null : listPrice,
-      sale_price: salePrice === "" ? null : salePrice,
-      offers_received: offersReceived === "" ? null : offersReceived,
-      zillow_visible: zillowVisible,
-      redfin_visible: redfinVisible,
-      compass_visible: compassVisible,
-      property_type: propertyType || null,
-    };
-    if (photoUrl) listingData.photo_url = photoUrl;
+        if (uploadError || !url) {
+          setError(uploadError || "Photo upload failed");
+          return;
+        }
 
-    const { error: insertError } = await createListing(listingData);
+        photoUrl = url;
+      }
 
-    if (insertError) {
-      setError(`Failed to create listing: ${insertError}`);
+      // Insert listing
+      const listingData: Record<string, unknown> = {
+        client_name: clientName.trim(),
+        property_address: propertyAddress.trim(),
+        slug,
+        list_date: listDate || null,
+        status,
+        pending_date: pendingDate || null,
+        sold_date: soldDate || null,
+        list_price: listPrice === "" ? null : listPrice,
+        sale_price: salePrice === "" ? null : salePrice,
+        offers_received: offersReceived === "" ? null : offersReceived,
+        zillow_visible: zillowVisible,
+        redfin_visible: redfinVisible,
+        compass_visible: compassVisible,
+        property_type: propertyType || null,
+      };
+      if (photoUrl) listingData.photo_url = photoUrl;
+
+      const { error: insertError } = await createListing(listingData);
+
+      if (insertError) {
+        setError(`Failed to create listing: ${insertError}`);
+        return;
+      }
+
+      router.push("/admin");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An unexpected error occurred.");
+    } finally {
       setSubmitting(false);
-      return;
     }
-
-    router.push("/admin");
   }
 
   return (
