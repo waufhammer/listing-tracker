@@ -15,8 +15,6 @@ type Listing = {
   list_date: string | null;
   pending_date: string | null;
   first_look: boolean;
-  first_look_started_at: string | null;
-  first_look_days_banked: number | null;
 };
 
 const COLUMNS = [

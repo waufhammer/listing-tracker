@@ -6,7 +6,7 @@ import Link from "next/link";
 import { getListingById, getActivityEntries, getPlatformViews, checkRepeatVisit, createActivityEntry, updateActivityEntry, createPlatformView, updatePlatformView, deletePlatformView, checkSlugAvailable, updateListing, deleteListing as deleteListingAction } from "@/lib/actions";
 import { useAdminUser } from "@/lib/admin-user-context";
 import { uploadPhotoWithTimeout } from "@/lib/upload-with-timeout";
-import { effectiveDaysOnMarket, firstLookExcludedDays } from "@/lib/days-on-market";
+import { effectiveDaysOnMarket, todayDateString } from "@/lib/days-on-market";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -25,7 +25,6 @@ interface Listing {
   platform_views_public: boolean;
   first_look: boolean;
   first_look_started_at: string | null;
-  first_look_days_banked: number | null;
   photo_url: string | null;
   list_price: number | null;
   sale_price: number | null;
@@ -227,18 +226,36 @@ export default function ListingDetailPage() {
 
   // ── First Look toggle ───────────────────────────────────────────────────
 
+  // Turning First Look on just flags it (DOM is hidden while it's on).
+  // Turning it off opens a date picker: the chosen go-active date becomes
+  // list_date, so DOM counts from when the listing actually went active.
+  const [goActiveOpen, setGoActiveOpen] = useState(false);
+  const [goActiveDate, setGoActiveDate] = useState("");
+  const [goActiveSaving, setGoActiveSaving] = useState(false);
+
   async function handleToggleFirstLook() {
     if (!listing) return;
-    const turningOn = !listing.first_look;
-    const update = turningOn
-      ? { first_look: true, first_look_started_at: new Date().toISOString() }
-      : {
-          first_look: false,
-          first_look_started_at: null,
-          first_look_days_banked: firstLookExcludedDays(listing),
-        };
+    if (listing.first_look) {
+      setGoActiveDate(todayDateString());
+      setGoActiveOpen(true);
+      return;
+    }
+    const update = { first_look: true, first_look_started_at: new Date().toISOString() };
     const { error } = await updateListing(listing.id, update);
     if (!error) setListing({ ...listing, ...update });
+  }
+
+  async function handleConfirmGoActive() {
+    if (!listing || !goActiveDate || goActiveSaving) return;
+    setGoActiveSaving(true);
+    const update = { first_look: false, first_look_started_at: null, list_date: goActiveDate };
+    const { error } = await updateListing(listing.id, update);
+    setGoActiveSaving(false);
+    if (!error) {
+      setListing({ ...listing, ...update });
+      setEditListDate(goActiveDate);
+      setGoActiveOpen(false);
+    }
   }
 
   // ── Single entry handlers ──────────────────────────────────────────────
@@ -438,12 +455,16 @@ export default function ListingDetailPage() {
       };
       if (newPhotoUrl) updateData.photo_url = newPhotoUrl;
 
-      // First Look only makes sense for Active listings — bank its days and
-      // turn it off if the listing is moving to another status.
+      // First Look only makes sense for Active listings — turn it off if the
+      // listing is moving to another status. It never went fully active, so
+      // unless the list date was edited here, start DOM at the pending date
+      // (or today), i.e. 0 days on market.
       if (editStatus !== "active" && listing?.first_look) {
         updateData.first_look = false;
         updateData.first_look_started_at = null;
-        updateData.first_look_days_banked = firstLookExcludedDays(listing);
+        if (editListDate === (listing.list_date ?? "")) {
+          updateData.list_date = editPendingDate || todayDateString();
+        }
       }
 
       const { error } = await updateListing(id, updateData);
@@ -539,6 +560,32 @@ export default function ListingDetailPage() {
               First Look
             </label>
           )}
+          {goActiveOpen && listing.first_look && (
+            <span className="flex items-center gap-2 text-xs text-gray-600">
+              Went active on
+              <input
+                type="date"
+                value={goActiveDate}
+                onChange={(e) => setGoActiveDate(e.target.value)}
+                className="rounded border border-gray-300 px-1.5 py-0.5 text-xs"
+              />
+              <button
+                type="button"
+                onClick={handleConfirmGoActive}
+                disabled={!goActiveDate || goActiveSaving}
+                className="rounded bg-green-600 px-2 py-0.5 font-medium text-white hover:bg-green-700 disabled:opacity-50"
+              >
+                {goActiveSaving ? "Saving..." : "Go Active"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setGoActiveOpen(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                Cancel
+              </button>
+            </span>
+          )}
         </p>
       </div>
 
@@ -549,7 +596,7 @@ export default function ListingDetailPage() {
         <span><span className="font-semibold text-gray-900">{buyerShowingCount}</span> Showings</span>
         <span><span className="font-semibold text-gray-900">{agentPreviewCount}</span> Previews</span>
         <span><span className="font-semibold text-gray-900">{openHouseCount}</span> Open Houses</span>
-        <span><span className="font-semibold text-gray-900">{dom ?? "--"}</span> DOM</span>
+        <span><span className="font-semibold text-gray-900">{listing.first_look ? "First Look" : dom ?? "--"}</span>{!listing.first_look && " DOM"}</span>
         <span><span className="font-semibold text-gray-900">{totalPlatformViews}</span> Platform Views</span>
       </div>
 

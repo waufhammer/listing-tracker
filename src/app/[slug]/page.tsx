@@ -113,7 +113,7 @@ export default async function ClientDashboardPage({
 
   // ── Compute stats ─────────────────────────────────────────────────────
 
-  const dom = effectiveDaysOnMarket(listing) ?? 0;
+  const dom = effectiveDaysOnMarket(listing);
 
   const buyerShowings = entries.filter((e) => e.type === "buyer_showing");
   const agentPreviews = entries.filter((e) => e.type === "agent_preview");
@@ -169,7 +169,11 @@ export default async function ClientDashboardPage({
       else if (e.type === "agent_preview") dayMap[e.date].previews++;
       else if (e.type === "open_house") dayMap[e.date].ohGroups += (e.open_house_groups ?? 0);
     });
-    const start = new Date(listing.list_date + "T00:00:00");
+    // Start at the earlier of list date and first activity, so showings during
+    // First Look (before the go-active list date) still appear.
+    const firstEntryDate = entries.reduce<string | null>((min, e) => (!min || e.date < min ? e.date : min), null);
+    const startDate = firstEntryDate && firstEntryDate < listing.list_date ? firstEntryDate : listing.list_date;
+    const start = new Date(startDate + "T00:00:00");
     start.setDate(start.getDate() - 1); // start one day before list date to show zero baseline
     const end = listing.pending_date
       ? new Date(listing.pending_date + "T00:00:00")
@@ -240,7 +244,7 @@ export default async function ClientDashboardPage({
                   {statusLabel}
                 </span>
               )}
-              {listing.list_date && (
+              {dom !== null && (
                 <span className="text-gray-400 text-sm font-medium">
                   {dom} days on market
                 </span>
