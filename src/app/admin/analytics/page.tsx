@@ -170,6 +170,31 @@ function StatCard({ label, value, sub }: { label: string; value: string | number
 
 type SortKey = "property" | "status" | "dom" | "totalGroups" | "disclosurePkgs" | "conversionPct" | "offers" | "listPrice" | "salePrice" | "pctOverUnder" | "soldDate";
 
+const DEFAULT_STATUS_RANK: Record<string, number> = { sold: 0, pending: 1, active: 2 };
+
+// Newest date first; missing dates sort last.
+function compareDatesDesc(a: string | null, b: string | null): number {
+  if (!a && !b) return 0;
+  if (!a) return 1;
+  if (!b) return -1;
+  return a < b ? 1 : a > b ? -1 : 0;
+}
+
+// Fallback order for listings with no sold date (or a tie): sold, then pending, then active,
+// each by pending date, then list date.
+function compareDefault(a: ListingSummary, b: ListingSummary): number {
+  const rankDiff = (DEFAULT_STATUS_RANK[a.listing.status] ?? 3) - (DEFAULT_STATUS_RANK[b.listing.status] ?? 3);
+  if (rankDiff !== 0) return rankDiff;
+  if (a.listing.status === "sold") {
+    const soldCmp = compareDatesDesc(a.listing.sold_date, b.listing.sold_date);
+    if (soldCmp !== 0) return soldCmp;
+  }
+  return (
+    compareDatesDesc(a.listing.pending_date, b.listing.pending_date) ||
+    compareDatesDesc(a.listing.list_date, b.listing.list_date)
+  );
+}
+
 function getSortValue(s: ListingSummary, key: SortKey): number | string | null {
   switch (key) {
     case "property": return s.listing.property_address;
@@ -189,10 +214,11 @@ function getSortValue(s: ListingSummary, key: SortKey): number | string | null {
 function compareSummaries(a: ListingSummary, b: ListingSummary, key: SortKey, dir: "asc" | "desc"): number {
   const aVal = getSortValue(a, key);
   const bVal = getSortValue(b, key);
-  if (aVal == null && bVal == null) return 0;
+  if (aVal == null && bVal == null) return key === "soldDate" ? compareDefault(a, b) : 0;
   if (aVal == null) return 1;
   if (bVal == null) return -1;
   const cmp = typeof aVal === "string" ? aVal.localeCompare(bVal as string) : (aVal as number) - (bVal as number);
+  if (cmp === 0 && key === "soldDate") return compareDefault(a, b);
   return dir === "asc" ? cmp : -cmp;
 }
 
@@ -203,8 +229,8 @@ export default function AnalyticsPage() {
   const [allEntries, setAllEntries] = useState<ActivityEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedListingId, setSelectedListingId] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("property");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [sortKey, setSortKey] = useState<SortKey>("soldDate");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   // Filters
   const [datePreset, setDatePreset] = useState<DatePreset>('all');
