@@ -19,6 +19,7 @@ interface Listing {
   property_address: string;
   status: string;
   list_date: string | null;
+  first_look?: boolean;
   pending_date: string | null;
   sold_date: string | null;
   list_price: number | null;
@@ -245,7 +246,7 @@ export default function AnalyticsPage() {
       const offers = listing.offers_received ?? 0;
       const offersToGroupsPct = totalGroups > 0 ? (offers / totalGroups) * 100 : null;
       const offersToDisclosuresPct = disclosurePkgs > 0 ? (offers / disclosurePkgs) * 100 : null;
-      const dom = daysOnMarket(listing.list_date, listing.pending_date);
+      const dom = listing.first_look ? null : daysOnMarket(listing.list_date, listing.pending_date);
 
       let pctOverUnder: number | null = null;
       if (listing.list_price && listing.sale_price && listing.list_price > 0) {
