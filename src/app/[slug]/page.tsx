@@ -254,14 +254,6 @@ export default async function ClientDashboardPage({
         </div>
       </div>
 
-      {/* ── Status Banners ────────────────────────────────────── */}
-      {listing.status === "sold" && (
-        <div className="mb-8 rounded-xl border border-red-200 bg-red-50 px-5 py-4">
-          <p className="text-sm font-semibold text-red-800">This property has been sold.</p>
-          <p className="text-sm text-red-700 mt-1">Showing activity from the listing period is available below.</p>
-        </div>
-      )}
-
       {/* ── Main Content ─────────────────────────────────────── */}
       <div>
 
