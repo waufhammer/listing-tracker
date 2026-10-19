@@ -7,6 +7,7 @@ import ActivityLog from "@/components/ActivityLog";
 import CumulativeActivityChart from "@/components/CumulativeActivityChart";
 import PageViewTracker from "@/components/PageViewTracker";
 import { effectiveDaysOnMarket } from "@/lib/days-on-market";
+import { WEEKLY_AFTER_DAYS } from "@/lib/weekly";
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
@@ -115,6 +116,8 @@ export default async function ClientDashboardPage({
   // ── Compute stats ─────────────────────────────────────────────────────
 
   const dom = effectiveDaysOnMarket(listing);
+  // Daily chart points for the first 30 days on market, weekly after that.
+  const weeklyCharts = dom != null && dom > WEEKLY_AFTER_DAYS;
 
   const buyerShowings = entries.filter((e) => e.type === "buyer_showing");
   const agentPreviews = entries.filter((e) => e.type === "agent_preview");
@@ -304,7 +307,11 @@ export default async function ClientDashboardPage({
           {cumulativeActivity.length > 1 && (
             <div className="bg-white border border-gray-100 rounded-xl p-4 mt-3">
               <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-3">Activity Over Time</p>
-              <CumulativeActivityChart data={cumulativeActivity} />
+              <CumulativeActivityChart
+                data={cumulativeActivity}
+                weekly={weeklyCharts}
+                listDate={listing.list_date ?? undefined}
+              />
             </div>
           )}
         </section>
@@ -355,6 +362,7 @@ export default async function ClientDashboardPage({
                   })
                 )}
                 listDate={listing.list_date ?? undefined}
+                weekly={weeklyCharts}
               />
             </div>
             <p className="text-xs text-gray-400 mt-2 leading-relaxed">

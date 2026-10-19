@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import { sampleWeekly } from "@/lib/weekly";
 
 interface DataPoint {
   date: string;
@@ -20,6 +21,8 @@ interface DataPoint {
 
 interface CumulativeActivityChartProps {
   data: DataPoint[];
+  weekly?: boolean;
+  listDate?: string;
 }
 
 function formatDate(dateStr: string) {
@@ -27,7 +30,7 @@ function formatDate(dateStr: string) {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-export default function CumulativeActivityChart({ data }: CumulativeActivityChartProps) {
+export default function CumulativeActivityChart({ data, weekly = false, listDate }: CumulativeActivityChartProps) {
   if (data.length === 0) {
     return (
       <div className="flex items-center justify-center h-48 text-gray-400 text-sm">
@@ -36,7 +39,9 @@ export default function CumulativeActivityChart({ data }: CumulativeActivityChar
     );
   }
 
-  const chartData = data.map((d) => ({
+  const points = weekly ? sampleWeekly(data, listDate, (d) => d.date) : data;
+
+  const chartData = points.map((d) => ({
     date: formatDate(d.date),
     Showings: d.showings,
     Previews: d.previews,
@@ -60,6 +65,7 @@ export default function CumulativeActivityChart({ data }: CumulativeActivityChar
           allowDecimals={false}
         />
         <Tooltip
+          labelFormatter={(label) => (weekly ? `Week ending ${label}` : label)}
           contentStyle={{
             backgroundColor: "#fff",
             border: "1px solid #e5e7eb",
@@ -74,7 +80,7 @@ export default function CumulativeActivityChart({ data }: CumulativeActivityChar
           dataKey="Showings"
           stroke="#00B04F"
           strokeWidth={2}
-          dot={{ r: 2, fill: "#00B04F" }}
+          dot={{ r: weekly ? 3 : 2, fill: "#00B04F" }}
           activeDot={{ r: 4 }}
         />
         <Line
@@ -82,7 +88,7 @@ export default function CumulativeActivityChart({ data }: CumulativeActivityChar
           dataKey="Previews"
           stroke="#006AFF"
           strokeWidth={2}
-          dot={{ r: 2, fill: "#006AFF" }}
+          dot={{ r: weekly ? 3 : 2, fill: "#006AFF" }}
           activeDot={{ r: 4 }}
         />
         <Line
@@ -90,7 +96,7 @@ export default function CumulativeActivityChart({ data }: CumulativeActivityChar
           dataKey="OH Groups"
           stroke="#F59E0B"
           strokeWidth={2}
-          dot={{ r: 2, fill: "#F59E0B" }}
+          dot={{ r: weekly ? 3 : 2, fill: "#F59E0B" }}
           activeDot={{ r: 4 }}
         />
       </LineChart>

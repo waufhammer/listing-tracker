@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import { sampleWeekly } from "@/lib/weekly";
 
 interface PlatformViewEntry {
   date: string;
@@ -24,6 +25,7 @@ interface PlatformViewsChartProps {
   zillowVisible?: boolean;
   redfinVisible?: boolean;
   compassVisible?: boolean;
+  weekly?: boolean;
 }
 
 const platformConfig = {
@@ -43,6 +45,7 @@ export default function PlatformViewsChart({
   zillowVisible,
   redfinVisible,
   compassVisible,
+  weekly = false,
 }: PlatformViewsChartProps) {
   if (data.length === 0) {
     return (
@@ -74,7 +77,7 @@ export default function PlatformViewsChart({
   let lastRedfin = 0;
   let lastCompass = 0;
 
-  const chartData = effectiveData.map((entry) => {
+  const dailyData = effectiveData.map((entry) => {
     if (entry.zillow_views != null) lastZillow = entry.zillow_views;
     if (entry.redfin_views != null) lastRedfin = entry.redfin_views;
     if (entry.compass_views != null) lastCompass = entry.compass_views;
@@ -87,6 +90,8 @@ export default function PlatformViewsChart({
       ...(showCompass && { Compass: lastCompass }),
     };
   });
+
+  const chartData = weekly ? sampleWeekly(dailyData, listDate, (d) => d.rawDate) : dailyData;
 
   const visiblePlatforms = [
     ...(showZillow ? [platformConfig.zillow] : []),
@@ -114,6 +119,7 @@ export default function PlatformViewsChart({
           allowDecimals={false}
         />
         <Tooltip
+          labelFormatter={(label) => (weekly ? `Week ending ${label}` : label)}
           contentStyle={{
             backgroundColor: "#fff",
             border: "1px solid #e5e7eb",
