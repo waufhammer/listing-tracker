@@ -102,7 +102,7 @@ export async function getAllActivityEntries() {
   await requireAdmin();
   const { data, error } = await supabaseAdmin
     .from("activity_entries")
-    .select("listing_id, type, buyer_packet_requested, open_house_groups, date");
+    .select("listing_id, type, buyer_packet_requested, open_house_groups, open_house_disclosure_requests, date");
   return { data: data ?? [], error: error?.message ?? null };
 }
 

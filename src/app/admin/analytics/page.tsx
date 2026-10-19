@@ -33,6 +33,7 @@ interface ActivityEntry {
   type: string;
   buyer_packet_requested: boolean;
   open_house_groups: number | null;
+  open_house_disclosure_requests: number | null;
   date: string;
 }
 
@@ -267,7 +268,10 @@ export default function AnalyticsPage() {
         .reduce((sum, e) => sum + (e.open_house_groups ?? 0), 0);
       const totalGroups = buyerShowings + ohGroups;
 
-      const disclosurePkgs = entries.filter((e) => e.buyer_packet_requested).length;
+      const ohDisclosures = entries
+        .filter((e) => e.type === "open_house")
+        .reduce((sum, e) => sum + (e.open_house_disclosure_requests ?? 0), 0);
+      const disclosurePkgs = entries.filter((e) => e.buyer_packet_requested).length + ohDisclosures;
       const conversionPct = totalGroups > 0 ? (disclosurePkgs / totalGroups) * 100 : null;
       const offers = listing.offers_received ?? 0;
       const offersToGroupsPct = totalGroups > 0 ? (offers / totalGroups) * 100 : null;

@@ -23,6 +23,7 @@ interface ActivityEntry {
   display_feedback: string | null;
   feedback_visible: boolean;
   open_house_groups: number | null;
+  open_house_disclosure_requests: number | null;
   logged_by: string | null;
   created_at: string;
 }
@@ -58,6 +59,7 @@ function ActivityEntryContent() {
   const [feedback, setFeedback] = useState("");
   const [feedbackVisible, setFeedbackVisible] = useState(false);
   const [openHouseGroups, setOpenHouseGroups] = useState<number | "">("");
+  const [openHouseDisclosureRequests, setOpenHouseDisclosureRequests] = useState<number | "">("");
 
   useEffect(() => {
     fetchListings();
@@ -118,6 +120,7 @@ function ActivityEntryContent() {
     setFeedback("");
     setFeedbackVisible(false);
     setOpenHouseGroups("");
+    setOpenHouseDisclosureRequests("");
     setRepeatBanner(false);
   }
 
@@ -136,6 +139,7 @@ function ActivityEntryContent() {
 
     if (activityType === "Open House") {
       entry.open_house_groups = openHouseGroups === "" ? null : openHouseGroups;
+      entry.open_house_disclosure_requests = openHouseDisclosureRequests === "" ? null : openHouseDisclosureRequests;
     } else {
       entry.agent_name = agentName || null;
       entry.is_repeat_visit = isRepeatVisit;
@@ -296,22 +300,40 @@ function ActivityEntryContent() {
                 )}
 
                 {activityType === "Open House" && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Number of Groups
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={openHouseGroups}
-                      onChange={(e) =>
-                        setOpenHouseGroups(
-                          e.target.value === "" ? "" : parseInt(e.target.value)
-                        )
-                      }
-                      className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
-                    />
-                  </div>
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Number of Groups
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={openHouseGroups}
+                        onChange={(e) =>
+                          setOpenHouseGroups(
+                            e.target.value === "" ? "" : parseInt(e.target.value)
+                          )
+                        }
+                        className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Disclosure Packages Requested
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={openHouseDisclosureRequests}
+                        onChange={(e) =>
+                          setOpenHouseDisclosureRequests(
+                            e.target.value === "" ? "" : parseInt(e.target.value)
+                          )
+                        }
+                        className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
+                      />
+                    </div>
+                  </>
                 )}
 
                 {/* Feedback */}
@@ -401,7 +423,14 @@ function ActivityEntryContent() {
                       <span>{entry.date}</span>
                       <span className="text-gray-300">|</span>
                       <span className="truncate">
-                        {entry.agent_name || (entry.type === "open_house" ? `${entry.open_house_groups ?? 0} groups` : "-")}
+                        {entry.agent_name ||
+                          (entry.type === "open_house"
+                            ? `${entry.open_house_groups ?? 0} groups${
+                                entry.open_house_disclosure_requests
+                                  ? ` · ${entry.open_house_disclosure_requests} disclosure${entry.open_house_disclosure_requests === 1 ? "" : "s"} requested`
+                                  : ""
+                              }`
+                            : "-")}
                       </span>
                       {entry.logged_by && (
                         <span className="text-xs text-gray-400">

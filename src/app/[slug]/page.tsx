@@ -24,6 +24,7 @@ interface ActivityEntry {
   display_feedback?: string | null;
   feedback_visible?: boolean;
   open_house_groups?: number | null;
+  open_house_disclosure_requests?: number | null;
   created_at?: string;
 }
 
@@ -132,7 +133,11 @@ export default async function ClientDashboardPage({
     0
   );
 
-  const disclosureRequests = entries.filter((e) => e.buyer_packet_requested).length;
+  const openHouseDisclosureRequests = openHouses.reduce(
+    (sum, e) => sum + (e.open_house_disclosure_requests ?? 0),
+    0
+  );
+  const disclosureRequests = entries.filter((e) => e.buyer_packet_requested).length + openHouseDisclosureRequests;
 
   // Last updated
   const lastEntryCreated = entries.length > 0 ? entries[0].created_at : null;

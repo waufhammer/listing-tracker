@@ -13,6 +13,7 @@ interface ActivityLogEntry {
   display_feedback?: string | null;
   feedback_visible?: boolean;
   open_house_groups?: number | null;
+  open_house_disclosure_requests?: number | null;
 }
 
 interface ActivityTypeConfig {
@@ -67,6 +68,11 @@ export default function ActivityLog({ entries, activityTypeConfig }: ActivityLog
                     )}
                     {entry.buyer_packet_requested && (
                       <span className="rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-green-700 border border-green-200">Disclosure Sent</span>
+                    )}
+                    {!!entry.open_house_disclosure_requests && (
+                      <span className="rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-green-700 border border-green-200">
+                        {entry.open_house_disclosure_requests} Disclosure{entry.open_house_disclosure_requests === 1 ? "" : "s"} Requested
+                      </span>
                     )}
                   </div>
                   {entry.agent_name && (

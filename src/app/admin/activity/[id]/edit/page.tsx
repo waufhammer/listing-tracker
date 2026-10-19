@@ -37,6 +37,7 @@ export default function EditActivityEntryPage() {
   const [feedback, setFeedback] = useState("");
   const [feedbackVisible, setFeedbackVisible] = useState(false);
   const [openHouseGroups, setOpenHouseGroups] = useState<number | "">("");
+  const [openHouseDisclosureRequests, setOpenHouseDisclosureRequests] = useState<number | "">("");
   const [loggedBy, setLoggedBy] = useState<string | null>(null);
 
   useEffect(() => {
@@ -55,6 +56,7 @@ export default function EditActivityEntryPage() {
         setFeedback(data.display_feedback || data.raw_feedback || "");
         setFeedbackVisible(data.feedback_visible || false);
         setOpenHouseGroups(data.open_house_groups ?? "");
+        setOpenHouseDisclosureRequests(data.open_house_disclosure_requests ?? "");
         setLoggedBy(data.logged_by ?? null);
       }
       setLoading(false);
@@ -75,6 +77,7 @@ export default function EditActivityEntryPage() {
 
     if (activityType === "Open House") {
       updates.open_house_groups = openHouseGroups === "" ? null : openHouseGroups;
+      updates.open_house_disclosure_requests = openHouseDisclosureRequests === "" ? null : openHouseDisclosureRequests;
       updates.agent_name = null;
       updates.is_repeat_visit = false;
       updates.follow_up_sent = false;
@@ -85,6 +88,7 @@ export default function EditActivityEntryPage() {
       updates.follow_up_sent = followUpSent;
       updates.buyer_packet_requested = buyerPacketRequested;
       updates.open_house_groups = null;
+      updates.open_house_disclosure_requests = null;
     }
 
     const { error } = await updateActivityEntry(id, updates);
@@ -213,22 +217,40 @@ export default function EditActivityEntryPage() {
           )}
 
           {activityType === "Open House" && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Number of Groups
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={openHouseGroups}
-                onChange={(e) =>
-                  setOpenHouseGroups(
-                    e.target.value === "" ? "" : parseInt(e.target.value)
-                  )
-                }
-                className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
-              />
-            </div>
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Number of Groups
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={openHouseGroups}
+                  onChange={(e) =>
+                    setOpenHouseGroups(
+                      e.target.value === "" ? "" : parseInt(e.target.value)
+                    )
+                  }
+                  className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Disclosure Packages Requested
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={openHouseDisclosureRequests}
+                  onChange={(e) =>
+                    setOpenHouseDisclosureRequests(
+                      e.target.value === "" ? "" : parseInt(e.target.value)
+                    )
+                  }
+                  className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
+                />
+              </div>
+            </>
           )}
 
           {/* Feedback */}

@@ -44,6 +44,7 @@ interface ActivityEntry {
   display_feedback: string | null;
   feedback_visible: boolean;
   open_house_groups: number | null;
+  open_house_disclosure_requests: number | null;
   logged_by: string | null;
 }
 
@@ -75,6 +76,14 @@ const typeDotColor: Record<string, string> = {
   agent_preview: "bg-gray-500",
   open_house: "bg-amber-500",
 };
+
+function openHouseSummary(entry: ActivityEntry): string {
+  const groups = `${entry.open_house_groups ?? 0} group${entry.open_house_groups === 1 ? "" : "s"}`;
+  const disclosures = entry.open_house_disclosure_requests
+    ? ` · ${entry.open_house_disclosure_requests} disclosure${entry.open_house_disclosure_requests === 1 ? "" : "s"} requested`
+    : "";
+  return groups + disclosures;
+}
 
 const STATUS_OPTIONS = [
   { value: "prepping", label: "Preparing to List" },
@@ -126,6 +135,7 @@ export default function ListingDetailPage() {
   const [singleFeedback, setSingleFeedback] = useState("");
   const [singleFeedbackVisible, setSingleFeedbackVisible] = useState(false);
   const [singleOpenHouseGroups, setSingleOpenHouseGroups] = useState<number | "">("");
+  const [singleDisclosureRequests, setSingleDisclosureRequests] = useState<number | "">("");
   const [savingSingle, setSavingSingle] = useState(false);
   const [singleError, setSingleError] = useState("");
   const [repeatBanner, setRepeatBanner] = useState(false);
@@ -270,6 +280,7 @@ export default function ListingDetailPage() {
     setSingleFeedback("");
     setSingleFeedbackVisible(false);
     setSingleOpenHouseGroups("");
+    setSingleDisclosureRequests("");
     setSingleError("");
     setRepeatBanner(false);
   }
@@ -304,6 +315,7 @@ export default function ListingDetailPage() {
 
     if (singleType === "Open House") {
       entry.open_house_groups = singleOpenHouseGroups === "" ? null : singleOpenHouseGroups;
+      entry.open_house_disclosure_requests = singleDisclosureRequests === "" ? null : singleDisclosureRequests;
     } else {
       entry.agent_name = singleAgent || null;
       entry.is_repeat_visit = singleRepeat;
@@ -688,9 +700,7 @@ export default function ListingDetailPage() {
                       <span className="text-gray-400">|</span>
                       <span className="text-gray-700 truncate">
                         {entry.agent_name ||
-                          (entry.type === "open_house"
-                            ? `${entry.open_house_groups ?? 0} groups`
-                            : "--")}
+                          (entry.type === "open_house" ? openHouseSummary(entry) : "--")}
                       </span>
                       {feedbackExcerpt && (
                         <>
@@ -711,6 +721,7 @@ export default function ListingDetailPage() {
                             Repeat
                           </span>
                         )}
+                        {entry.type !== "open_house" && (
                         <button
                           onClick={async () => {
                             const newVal = !entry.buyer_packet_requested;
@@ -727,6 +738,7 @@ export default function ListingDetailPage() {
                             <div className={`absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow transition-transform ${entry.buyer_packet_requested ? "left-[16px]" : "left-[2px]"}`} />
                           </div>
                         </button>
+                        )}
                         <Link
                           href={`/admin/activity/${entry.id}/edit`}
                           className="text-green-600 hover:text-green-800 font-medium"
@@ -771,14 +783,13 @@ export default function ListingDetailPage() {
                         </span>
                         <span className="truncate ml-2">
                           {entry.agent_name ||
-                            (entry.type === "open_house"
-                              ? `${entry.open_house_groups ?? 0} groups`
-                              : "")}
+                            (entry.type === "open_house" ? openHouseSummary(entry) : "")}
                         </span>
                       </div>
                       {feedbackExcerpt && (
                         <p className="text-gray-500 text-xs truncate">{feedbackExcerpt}</p>
                       )}
+                      {entry.type !== "open_house" && (
                       <div className="flex items-center justify-between">
                         <button
                           onClick={async () => {
@@ -797,6 +808,7 @@ export default function ListingDetailPage() {
                           </div>
                         </button>
                       </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -920,6 +932,26 @@ export default function ListingDetailPage() {
                     value={singleOpenHouseGroups}
                     onChange={(e) =>
                       setSingleOpenHouseGroups(
+                        e.target.value === "" ? "" : parseInt(e.target.value)
+                      )
+                    }
+                    className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md shadow-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent"
+                  />
+                </div>
+              )}
+
+              {/* Open house disclosure requests */}
+              {singleType === "Open House" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Disclosure Packages Requested
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={singleDisclosureRequests}
+                    onChange={(e) =>
+                      setSingleDisclosureRequests(
                         e.target.value === "" ? "" : parseInt(e.target.value)
                       )
                     }

@@ -14,3 +14,7 @@ change in the dashboard.
 - `0002_first_look.sql` — adds `first_look`, `first_look_started_at`,
   `first_look_days_banked` columns to `listings` for NWMLS First Look
   tracking (excludes First Look days from days-on-market).
+- `0003_open_house_disclosure_requests.sql` — adds
+  `open_house_disclosure_requests` to `activity_entries`, a count of buyer
+  disclosure package requests at an Open House (Showing/Preview entries
+  already had the boolean `buyer_packet_requested` for this).
