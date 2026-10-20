@@ -415,7 +415,7 @@ export default function NewListingPage() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="rounded-lg bg-green-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-green-700 disabled:opacity-50 transition-colors"
+                className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 transition-colors"
               >
                 {submitting ? "Creating..." : "Create Listing"}
               </button>

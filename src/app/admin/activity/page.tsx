@@ -195,7 +195,7 @@ function ActivityEntryContent() {
           {!showForm && (
             <button
               onClick={() => setShowForm(true)}
-              className="mb-6 px-4 py-2 bg-green-600 text-white rounded-md font-medium hover:bg-green-700 transition-colors"
+              className="mb-6 px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition-colors"
             >
               Add Entry
             </button>
@@ -365,7 +365,7 @@ function ActivityEntryContent() {
                   <button
                     type="submit"
                     disabled={saving}
-                    className="px-4 py-2 bg-green-600 text-white rounded-md font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
                   >
                     {saving ? "Saving..." : "Save Entry"}
                   </button>

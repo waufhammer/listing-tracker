@@ -483,7 +483,7 @@ export default function EditListingPage() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="rounded-lg bg-green-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-green-700 disabled:opacity-50 transition-colors"
+                  className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 transition-colors"
                 >
                   {submitting ? "Saving..." : "Save Changes"}
                 </button>
@@ -570,7 +570,7 @@ export default function EditListingPage() {
             <button
               onClick={handleAddNote}
               disabled={savingNote || !newNote.trim()}
-              className="self-end rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+              className="self-end rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
             >
               {savingNote ? "..." : "Add"}
             </button>

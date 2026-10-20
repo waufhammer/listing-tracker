@@ -66,7 +66,7 @@ export default function AdminListingsPage() {
         <h1 className="text-2xl font-bold text-gray-900">Listings</h1>
         <Link
           href="/admin/listings/new"
-          className="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-700 transition-colors"
+          className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors"
         >
           + New Listing
         </Link>

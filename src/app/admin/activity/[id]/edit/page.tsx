@@ -282,7 +282,7 @@ export default function EditActivityEntryPage() {
             <button
               type="submit"
               disabled={saving}
-              className="px-4 py-2 bg-green-600 text-white rounded-md font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
             >
               {saving ? "Saving..." : "Save Changes"}
             </button>
