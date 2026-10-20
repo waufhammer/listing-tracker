@@ -9,15 +9,24 @@ function daysBetween(start: Date, end: Date): number {
 /**
  * Days on market, counted from list_date. Returns null while the listing is
  * in First Look — DOM doesn't start until it goes fully active, at which point
- * list_date is set to the go-active date. listDate/pendingDate are plain
- * "YYYY-MM-DD" date strings (as stored in the listings table).
+ * list_date is set to the go-active date. listDate/pendingDate/soldDate are
+ * plain "YYYY-MM-DD" date strings (as stored in the listings table).
+ *
+ * End date falls back from pending_date to sold_date to today — some sold
+ * listings never got a pending_date recorded, and without this fallback DOM
+ * keeps counting against today's date well past the actual sale.
  */
 export function effectiveDaysOnMarket(
-  listing: FirstLookFields & { list_date: string | null; pending_date?: string | null }
+  listing: FirstLookFields & {
+    list_date: string | null;
+    pending_date?: string | null;
+    sold_date?: string | null;
+  }
 ): number | null {
   if (listing.first_look || !listing.list_date) return null;
   const start = new Date(listing.list_date + "T00:00:00");
-  const end = listing.pending_date ? new Date(listing.pending_date + "T00:00:00") : new Date();
+  const endDateString = listing.pending_date ?? listing.sold_date;
+  const end = endDateString ? new Date(endDateString + "T00:00:00") : new Date();
   return daysBetween(start, end);
 }
 

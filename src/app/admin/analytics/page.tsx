@@ -54,10 +54,11 @@ type PropTypeFilter = 'all' | 'single_family' | 'condo' | 'townhome';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function daysOnMarket(listDate: string | null, pendingDate?: string | null): number | null {
+function daysOnMarket(listDate: string | null, pendingDate?: string | null, soldDate?: string | null): number | null {
   if (!listDate) return null;
   const start = new Date(listDate);
-  const end = pendingDate ? new Date(pendingDate) : new Date();
+  const endDateString = pendingDate ?? soldDate;
+  const end = endDateString ? new Date(endDateString) : new Date();
   const diff = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
   return diff >= 0 ? diff : null;
 }
@@ -276,7 +277,7 @@ export default function AnalyticsPage() {
       const offers = listing.offers_received ?? 0;
       const offersToGroupsPct = totalGroups > 0 ? (offers / totalGroups) * 100 : null;
       const offersToDisclosuresPct = disclosurePkgs > 0 ? (offers / disclosurePkgs) * 100 : null;
-      const dom = listing.first_look ? null : daysOnMarket(listing.list_date, listing.pending_date);
+      const dom = listing.first_look ? null : daysOnMarket(listing.list_date, listing.pending_date, listing.sold_date);
 
       let pctOverUnder: number | null = null;
       if (listing.list_price && listing.sale_price && listing.list_price > 0) {
