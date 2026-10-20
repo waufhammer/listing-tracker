@@ -5,6 +5,7 @@ import { getListings, getAllActivityEntries } from "@/lib/actions";
 import {
   BarChart,
   Bar,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -362,6 +363,24 @@ export default function AnalyticsPage() {
     { stage: "Offers", count: aggOffers },
   ];
 
+  // Days on market, one bar per filtered listing — longest first. First
+  // Look listings (dom null) are excluded rather than shown as zero, since
+  // zero would misread as "just listed" instead of "not counting yet."
+  const domChartData = [...filtered]
+    .filter((s) => s.dom != null)
+    .sort((a, b) => (b.dom ?? 0) - (a.dom ?? 0))
+    .map((s) => ({
+      name: s.listing.property_address,
+      dom: s.dom ?? 0,
+      status: s.listing.status,
+    }));
+  const domBarColor: Record<string, string> = {
+    prepping: "#3b82f6",
+    active: "#16a34a",
+    pending: "#f59e0b",
+    sold: "#ef4444",
+  };
+
   const funnelData = selected
     ? [
         { stage: "Groups", count: selected.totalGroups },
@@ -510,6 +529,40 @@ export default function AnalyticsPage() {
               </ResponsiveContainer>
             </div>
           </div>
+
+          {domChartData.length > 0 && (
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4 sm:p-6">
+              <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-4">
+                Days on Market by Listing
+                <span className="ml-2 text-xs font-normal text-gray-400 normal-case">longest first</span>
+              </h4>
+              <ResponsiveContainer width="100%" height={Math.max(120, domChartData.length * 36)}>
+                <BarChart
+                  data={domChartData}
+                  layout="vertical"
+                  margin={{ top: 0, right: 16, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                  <XAxis type="number" tick={axisTickStyle} tickLine={false} axisLine={{ stroke: "#e5e7eb" }} allowDecimals={false} />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    tick={{ fontSize: 12, fill: "#374151" }}
+                    tickLine={false}
+                    axisLine={{ stroke: "#e5e7eb" }}
+                    width={160}
+                    tickFormatter={(name: string) => (name.length > 22 ? `${name.slice(0, 21)}…` : name)}
+                  />
+                  <Tooltip contentStyle={tooltipStyle} formatter={(v) => [`${v} days`, "DOM"]} />
+                  <Bar dataKey="dom" radius={[0, 4, 4, 0]}>
+                    {domChartData.map((entry) => (
+                      <Cell key={entry.name} fill={domBarColor[entry.status] ?? "#9ca3af"} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
       )}
 
