@@ -3,7 +3,7 @@
 import { useState, useEffect, FormEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { getListingById, getActivityEntries, getPlatformViews, checkRepeatVisit, createActivityEntry, updateActivityEntry, createPlatformView, updatePlatformView, deletePlatformView, checkSlugAvailable, updateListing, deleteListing as deleteListingAction } from "@/lib/actions";
+import { getListingById, getActivityEntries, getPlatformViews, getPageViewStats, checkRepeatVisit, createActivityEntry, updateActivityEntry, createPlatformView, updatePlatformView, deletePlatformView, checkSlugAvailable, updateListing, deleteListing as deleteListingAction } from "@/lib/actions";
 import { useAdminUser } from "@/lib/admin-user-context";
 import { uploadPhotoWithTimeout } from "@/lib/upload-with-timeout";
 import { effectiveDaysOnMarket, todayDateString } from "@/lib/days-on-market";
@@ -85,6 +85,22 @@ function openHouseSummary(entry: ActivityEntry): string {
   return groups + disclosures;
 }
 
+function formatRelativeTime(isoStr: string): string {
+  const date = new Date(isoStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return "just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return "yesterday";
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
 const STATUS_OPTIONS = [
   { value: "prepping", label: "Preparing to List" },
   { value: "active", label: "Active" },
@@ -117,6 +133,11 @@ export default function ListingDetailPage() {
   const [listing, setListing] = useState<Listing | null>(null);
   const [entries, setEntries] = useState<ActivityEntry[]>([]);
   const [views, setViews] = useState<PlatformView[]>([]);
+  const [pageViewStats, setPageViewStats] = useState<{ total: number; last7Days: number; lastViewedAt: string | null }>({
+    total: 0,
+    last7Days: 0,
+    lastViewedAt: null,
+  });
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState("");
 
@@ -211,10 +232,15 @@ export default function ListingDetailPage() {
     if (data) setViews(data);
   }
 
+  async function fetchPageViewStats() {
+    const stats = await getPageViewStats(id);
+    setPageViewStats(stats);
+  }
+
   useEffect(() => {
     async function loadAll() {
       setLoading(true);
-      await Promise.all([fetchListing(), fetchEntries(), fetchViews()]);
+      await Promise.all([fetchListing(), fetchEntries(), fetchViews(), fetchPageViewStats()]);
       setLoading(false);
     }
     loadAll();
@@ -610,6 +636,12 @@ export default function ListingDetailPage() {
         <span><span className="font-semibold text-gray-900">{openHouseCount}</span> Open Houses</span>
         <span><span className="font-semibold text-gray-900">{listing.first_look ? "First Look" : dom ?? "--"}</span>{!listing.first_look && " DOM"}</span>
         <span><span className="font-semibold text-gray-900">{totalPlatformViews}</span> Platform Views</span>
+        <span title={`${pageViewStats.last7Days} in the last 7 days`}>
+          <span className="font-semibold text-gray-900">{pageViewStats.total}</span> Dashboard Views
+          {pageViewStats.lastViewedAt && (
+            <span className="text-gray-400"> ({formatRelativeTime(pageViewStats.lastViewedAt)})</span>
+          )}
+        </span>
       </div>
 
       {/* ════════════════════════════════════════════════════════════════════

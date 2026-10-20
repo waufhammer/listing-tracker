@@ -124,6 +124,33 @@ export async function getShowingCounts(listingIds: string[]) {
   return counts;
 }
 
+// Dashboard page visits — logged by PageViewTracker on every load of the
+// client-facing [slug] page, but never surfaced anywhere until now. One row
+// per view (listing_id + timestamp only, no visitor identity), so "views"
+// can include the agent/team checking the link, not just the client.
+export async function getPageViewStats(listingId: string) {
+  await requireAdmin();
+  const { data, error } = await supabaseAdmin
+    .from("page_views")
+    .select("viewed_at")
+    .eq("listing_id", listingId)
+    .order("viewed_at", { ascending: false });
+
+  if (error || !data) {
+    return { total: 0, last7Days: 0, lastViewedAt: null as string | null, error: error?.message ?? null };
+  }
+
+  const sevenDaysAgoMs = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const last7Days = data.filter((d) => new Date(d.viewed_at).getTime() >= sevenDaysAgoMs).length;
+
+  return {
+    total: data.length,
+    last7Days,
+    lastViewedAt: data.length > 0 ? data[0].viewed_at : null,
+    error: null,
+  };
+}
+
 export async function checkRepeatVisit(
   listingId: string,
   agentName: string
