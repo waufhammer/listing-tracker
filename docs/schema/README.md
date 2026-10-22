@@ -18,6 +18,3 @@ change in the dashboard.
   `open_house_disclosure_requests` to `activity_entries`, a count of buyer
   disclosure package requests at an Open House (Showing/Preview entries
   already had the boolean `buyer_packet_requested` for this).
-- `0004_platform_views_logged_by.sql` — adds `logged_by` to
-  `platform_views` so counts saved from the capture button record who
-  saved them.
