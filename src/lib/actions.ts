@@ -239,6 +239,50 @@ export async function deletePlatformView(id: string) {
   return { error: error?.message ?? null };
 }
 
+const CAPTURE_PLATFORMS = ["zillow", "redfin", "compass"] as const;
+
+// Saves one platform's count from the capture button. Fills in that
+// platform's column on the listing's row for the date if one exists, so a
+// day's Zillow, Redfin and Compass captures share a row like manual entries.
+export async function savePlatformViewCapture(capture: {
+  listing_id: string;
+  date: string;
+  platform: (typeof CAPTURE_PLATFORMS)[number];
+  views: number;
+  logged_by: string | null;
+}) {
+  await requireAdmin();
+  if (!CAPTURE_PLATFORMS.includes(capture.platform)) {
+    return { error: "Unknown platform" };
+  }
+  if (!Number.isInteger(capture.views) || capture.views < 0) {
+    return { error: "Views must be a whole number" };
+  }
+
+  const column = `${capture.platform}_views`;
+  const { data: existing, error: findError } = await supabaseAdmin
+    .from("platform_views")
+    .select("id")
+    .eq("listing_id", capture.listing_id)
+    .eq("date", capture.date)
+    .limit(1)
+    .maybeSingle();
+  if (findError) return { error: findError.message };
+
+  const { error } = existing
+    ? await supabaseAdmin
+        .from("platform_views")
+        .update({ [column]: capture.views, logged_by: capture.logged_by })
+        .eq("id", existing.id)
+    : await supabaseAdmin.from("platform_views").insert({
+        listing_id: capture.listing_id,
+        date: capture.date,
+        [column]: capture.views,
+        logged_by: capture.logged_by,
+      });
+  return { error: error?.message ?? null };
+}
+
 // ── Listing Notes ───────────────────────────────────────────────────────────
 
 export async function getListingNotes(listingId: string) {

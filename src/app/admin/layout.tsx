@@ -9,6 +9,7 @@ import { AdminUserProvider, useAdminUserContext } from "@/lib/admin-user-context
 const navItems = [
   { label: "Listings", href: "/admin" },
   { label: "Analytics", href: "/admin/analytics" },
+  { label: "Capture Button", href: "/admin/capture-button" },
 ];
 
 function NavContent({
@@ -81,6 +82,11 @@ export default function AdminLayout({
 
   if (pathname === "/admin/login") {
     return <>{children}</>;
+  }
+
+  // The capture button's popup window: no sidebar
+  if (pathname === "/admin/capture") {
+    return <AdminUserProvider>{children}</AdminUserProvider>;
   }
 
   async function handleLogout() {
