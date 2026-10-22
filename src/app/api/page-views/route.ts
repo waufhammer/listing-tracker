@@ -1,6 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 
+// Comma-separated IPs to skip logging for (e.g. the agent's own home/office
+// network), set via the EXCLUDED_VIEW_IPS env var. Behind Vercel, the real
+// client IP is the first entry in x-forwarded-for.
+function isExcludedIp(request: NextRequest): boolean {
+  const excluded = (process.env.EXCLUDED_VIEW_IPS ?? "")
+    .split(",")
+    .map((ip) => ip.trim())
+    .filter(Boolean);
+  if (excluded.length === 0) return false;
+
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  const clientIp = forwardedFor?.split(",")[0]?.trim();
+  return !!clientIp && excluded.includes(clientIp);
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { listing_id } = await request.json();
@@ -10,6 +25,10 @@ export async function POST(request: NextRequest) {
         { error: "listing_id is required" },
         { status: 400 }
       );
+    }
+
+    if (isExcludedIp(request)) {
+      return NextResponse.json({ success: true, excluded: true });
     }
 
     const { error } = await supabaseAdmin.from("page_views").insert({
