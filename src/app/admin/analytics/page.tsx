@@ -411,7 +411,7 @@ export default function AnalyticsPage() {
                 onClick={() => setDatePreset(preset)}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                   datePreset === preset
-                    ? "bg-blue-600 text-white"
+                    ? "bg-green-600 text-white"
                     : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                 }`}
               >
@@ -476,7 +476,7 @@ export default function AnalyticsPage() {
                 onClick={() => setPropTypeFilter(pt)}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                   propTypeFilter === pt
-                    ? "bg-blue-600 text-white"
+                    ? "bg-green-600 text-white"
                     : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                 }`}
               >
