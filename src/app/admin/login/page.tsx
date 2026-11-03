@@ -22,7 +22,9 @@ export default function AdminLoginPage() {
       const data = await res.json();
 
       if (res.ok && data.success) {
-        window.location.href = "/admin";
+        // Only same-site paths, so ?next= can't send anyone off-site.
+        const next = new URLSearchParams(window.location.search).get("next");
+        window.location.href = next && next.startsWith("/") && !next.startsWith("//") ? next : "/admin";
         return;
       } else {
         setError(data.error || "Invalid password");

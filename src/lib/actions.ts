@@ -2,11 +2,12 @@
 
 import { cookies } from "next/headers";
 import { supabaseAdmin } from "./supabase";
+import { ADMIN_COOKIE, isValidAdminSession } from "./admin-session";
 
 async function requireAdmin() {
   const cookieStore = await cookies();
-  const session = cookieStore.get("admin_session");
-  if (!session || session.value !== "authenticated") {
+  const session = cookieStore.get(ADMIN_COOKIE);
+  if (!(await isValidAdminSession(session?.value))) {
     throw new Error("Unauthorized");
   }
 }

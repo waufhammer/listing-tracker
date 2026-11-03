@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import { ADMIN_COOKIE, isValidAdminSession } from "@/lib/admin-session";
 
 // Comma-separated IPs to skip logging for (e.g. the agent's own home/office
 // network), set via the EXCLUDED_VIEW_IPS env var. Behind Vercel, the real
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest) {
 
     // Team view: Will's own visits while logged into admin are not logged,
     // so the view log only shows the client link being opened by others.
-    if (request.cookies.get("admin_session")?.value === "authenticated") {
+    if (await isValidAdminSession(request.cookies.get(ADMIN_COOKIE)?.value)) {
       return NextResponse.json({ success: true, excluded: true });
     }
 

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ADMIN_COOKIE, adminSessionValue } from "@/lib/admin-session";
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest) {
 
     const response = NextResponse.json({ success: true });
 
-    response.cookies.set("admin_session", "authenticated", {
+    response.cookies.set(ADMIN_COOKIE, await adminSessionValue(), {
       httpOnly: true,
       secure: isProduction,
       path: "/",
