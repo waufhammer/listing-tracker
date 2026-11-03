@@ -31,10 +31,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, excluded: true });
     }
 
-    const { error } = await supabaseAdmin.from("page_views").insert({
+    // Team view: Will's own visits while logged into admin are not logged,
+    // so the view log only shows the client link being opened by others.
+    if (request.cookies.get("admin_session")?.value === "authenticated") {
+      return NextResponse.json({ success: true, excluded: true });
+    }
+
+    const row = {
       listing_id,
       viewed_at: new Date().toISOString(),
-    });
+      user_agent: request.headers.get("user-agent")?.slice(0, 300) ?? null,
+    };
+    let { error } = await supabaseAdmin.from("page_views").insert(row);
+    // Before 0004_weekly_seller_update.sql is applied there is no
+    // user_agent column; still log the view.
+    if (error && /user_agent/.test(error.message)) {
+      ({ error } = await supabaseAdmin
+        .from("page_views")
+        .insert({ listing_id: row.listing_id, viewed_at: row.viewed_at }));
+    }
 
     if (error) {
       console.error("Failed to log page view:", error);

@@ -328,3 +328,81 @@ export async function uploadPropertyPhoto(formData: FormData) {
     };
   }
 }
+
+// ── Sellers ─────────────────────────────────────────────────────────────────
+
+export async function getSellers(listingId: string) {
+  await requireAdmin();
+  const { data, error } = await supabaseAdmin
+    .from("listing_sellers")
+    .select("*")
+    .eq("listing_id", listingId)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+  return { data: data ?? [], error: error?.message ?? null };
+}
+
+export async function createSeller(seller: {
+  listing_id: string;
+  first_name: string;
+  last_name?: string | null;
+  email?: string | null;
+  sort_order?: number;
+}) {
+  await requireAdmin();
+  const { error } = await supabaseAdmin.from("listing_sellers").insert(seller);
+  return { error: error?.message ?? null };
+}
+
+export async function updateSeller(id: string, updates: Record<string, unknown>) {
+  await requireAdmin();
+  const { error } = await supabaseAdmin.from("listing_sellers").update(updates).eq("id", id);
+  return { error: error?.message ?? null };
+}
+
+export async function deleteSeller(id: string) {
+  await requireAdmin();
+  const { error } = await supabaseAdmin.from("listing_sellers").delete().eq("id", id);
+  return { error: error?.message ?? null };
+}
+
+// ── Client link view log ────────────────────────────────────────────────────
+
+export async function getPageViewLog(listingId: string, limit = 50) {
+  await requireAdmin();
+  const { data, error } = await supabaseAdmin
+    .from("page_views")
+    .select("id, viewed_at, user_agent")
+    .eq("listing_id", listingId)
+    .order("viewed_at", { ascending: false })
+    .limit(limit);
+  return { data: data ?? [], error: error?.message ?? null };
+}
+
+// ── App settings ────────────────────────────────────────────────────────────
+
+export async function getSetting(key: string) {
+  await requireAdmin();
+  const { data, error } = await supabaseAdmin
+    .from("app_settings")
+    .select("value")
+    .eq("key", key)
+    .maybeSingle();
+  return { value: (data?.value as string | null) ?? null, error: error?.message ?? null };
+}
+
+export async function setSetting(key: string, value: string) {
+  await requireAdmin();
+  const { error } = await supabaseAdmin
+    .from("app_settings")
+    .upsert({ key, value, updated_at: new Date().toISOString() });
+  return { error: error?.message ?? null };
+}
+
+// ── Weekly seller update ────────────────────────────────────────────────────
+
+export async function getWeeklyEmailPreview(listingId: string, sendDate: string) {
+  await requireAdmin();
+  const { loadWeeklyEmail } = await import("./weekly-email-data");
+  return loadWeeklyEmail(listingId, sendDate, { testMode: true });
+}

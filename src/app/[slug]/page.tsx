@@ -6,7 +6,7 @@ import ActivitySummaryChart from "@/components/ActivitySummaryChart";
 import ActivityLog from "@/components/ActivityLog";
 import CumulativeActivityChart from "@/components/CumulativeActivityChart";
 import PageViewTracker from "@/components/PageViewTracker";
-import { effectiveDaysOnMarket } from "@/lib/days-on-market";
+import { effectiveDaysOnMarket, cumulativeDaysOnMarket, isRelisted } from "@/lib/days-on-market";
 import { WEEKLY_AFTER_DAYS } from "@/lib/weekly";
 
 export const metadata: Metadata = {
@@ -116,6 +116,7 @@ export default async function ClientDashboardPage({
   // ── Compute stats ─────────────────────────────────────────────────────
 
   const dom = effectiveDaysOnMarket(listing);
+  const cdom = isRelisted(listing) ? cumulativeDaysOnMarket(listing) : null;
   // Daily chart points for the first 30 days on market, weekly after that.
   const weeklyCharts = dom != null && dom > WEEKLY_AFTER_DAYS;
 
@@ -254,7 +255,7 @@ export default async function ClientDashboardPage({
               )}
               {dom !== null && (
                 <span className="text-gray-400 text-sm font-medium">
-                  {dom} days on market
+                  {dom} days on market{cdom !== null && ` | ${cdom} cumulative`}
                 </span>
               )}
             </div>

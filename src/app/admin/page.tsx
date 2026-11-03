@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getListings, getShowingCounts } from "@/lib/actions";
-import { effectiveDaysOnMarket } from "@/lib/days-on-market";
+import { effectiveDaysOnMarket, cumulativeDaysOnMarket, isRelisted } from "@/lib/days-on-market";
 
 type Listing = {
   id: string;
@@ -15,6 +15,7 @@ type Listing = {
   list_date: string | null;
   pending_date: string | null;
   first_look: boolean;
+  prior_days_on_market?: number | null;
 };
 
 const COLUMNS = [
@@ -123,7 +124,7 @@ export default function AdminListingsPage() {
                         {/* Meta row */}
                         <div className="flex items-center gap-3 mt-3 text-xs text-gray-500">
                           {dom !== null && (
-                            <span>{dom}d on market</span>
+                            <span>{dom}d on market{isRelisted(listing) && ` (${cumulativeDaysOnMarket(listing)} CDOM)`}</span>
                           )}
                           {showings > 0 && (
                             <span>{showings} showing{showings !== 1 ? "s" : ""}</span>

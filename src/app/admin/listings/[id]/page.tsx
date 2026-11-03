@@ -6,7 +6,8 @@ import Link from "next/link";
 import { getListingById, getActivityEntries, getPlatformViews, getPageViewStats, checkRepeatVisit, createActivityEntry, updateActivityEntry, createPlatformView, updatePlatformView, deletePlatformView, checkSlugAvailable, updateListing, deleteListing as deleteListingAction } from "@/lib/actions";
 import { useAdminUser } from "@/lib/admin-user-context";
 import { uploadPhotoWithTimeout } from "@/lib/upload-with-timeout";
-import { effectiveDaysOnMarket, todayDateString } from "@/lib/days-on-market";
+import { effectiveDaysOnMarket, cumulativeDaysOnMarket, isRelisted, todayDateString } from "@/lib/days-on-market";
+import ListingSellersPanel from "@/components/ListingSellersPanel";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -25,6 +26,7 @@ interface Listing {
   platform_views_public: boolean;
   first_look: boolean;
   first_look_started_at: string | null;
+  prior_days_on_market: number | null;
   photo_url: string | null;
   list_price: number | null;
   sale_price: number | null;
@@ -176,6 +178,7 @@ export default function ListingDetailPage() {
   const [editAddress, setEditAddress] = useState("");
   const [editSlug, setEditSlug] = useState("");
   const [editListDate, setEditListDate] = useState("");
+  const [editPriorDom, setEditPriorDom] = useState<number | "">("");
   const [editStatus, setEditStatus] = useState("prepping");
   const [editPendingDate, setEditPendingDate] = useState("");
   const [editSoldDate, setEditSoldDate] = useState("");
@@ -209,6 +212,7 @@ export default function ListingDetailPage() {
     setEditAddress(data.property_address ?? "");
     setEditSlug(data.slug ?? "");
     setEditListDate(data.list_date ?? "");
+    setEditPriorDom(data.prior_days_on_market ? data.prior_days_on_market : "");
     setEditStatus(data.status ?? "prepping");
     setEditPendingDate(data.pending_date ?? "");
     setEditSoldDate(data.sold_date ?? "");
@@ -253,6 +257,7 @@ export default function ListingDetailPage() {
   const agentPreviewCount = entries.filter((e) => e.type === "agent_preview").length;
   const openHouseCount = entries.filter((e) => e.type === "open_house").length;
   const dom = listing ? effectiveDaysOnMarket(listing) : null;
+  const cdom = listing ? cumulativeDaysOnMarket(listing) : null;
 
   const latestView = views.length > 0 ? views[0] : null;
   const totalPlatformViews =
@@ -480,6 +485,7 @@ export default function ListingDetailPage() {
         property_address: editAddress.trim(),
         slug: editSlug,
         list_date: editListDate || null,
+        prior_days_on_market: editPriorDom === "" ? 0 : editPriorDom,
         status: editStatus,
         pending_date: editPendingDate || null,
         sold_date: editSoldDate || null,
@@ -635,6 +641,9 @@ export default function ListingDetailPage() {
         <span><span className="font-semibold text-gray-900">{agentPreviewCount}</span> Previews</span>
         <span><span className="font-semibold text-gray-900">{openHouseCount}</span> Open Houses</span>
         <span><span className="font-semibold text-gray-900">{listing.first_look ? "First Look" : dom ?? "--"}</span>{!listing.first_look && " DOM"}</span>
+        {!listing.first_look && isRelisted(listing) && (
+          <span><span className="font-semibold text-gray-900">{cdom ?? "--"}</span> CDOM</span>
+        )}
         <span><span className="font-semibold text-gray-900">{totalPlatformViews}</span> Platform Views</span>
         <span title={`${pageViewStats.last7Days} in the last 7 days`}>
           <span className="font-semibold text-gray-900">{pageViewStats.total}</span> Dashboard Views
@@ -643,6 +652,8 @@ export default function ListingDetailPage() {
           )}
         </span>
       </div>
+
+      <ListingSellersPanel listingId={listing.id} slug={listing.slug} status={listing.status} />
 
       {/* ════════════════════════════════════════════════════════════════════
           2. ACTION BUTTONS
@@ -1298,6 +1309,27 @@ export default function ListingDetailPage() {
                   onChange={(e) => setEditListDate(e.target.value)}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
                 />
+                <p className="mt-1 text-xs text-gray-400">
+                  After a cancel and relist, set this to the relist date.
+                </p>
+              </div>
+
+              {/* Prior days on market (CDOM) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Prior Days on Market
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={editPriorDom}
+                  onChange={(e) => setEditPriorDom(e.target.value === "" ? "" : Math.max(0, parseInt(e.target.value, 10) || 0))}
+                  placeholder="0"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
+                <p className="mt-1 text-xs text-gray-400">
+                  Days from earlier listing periods before a cancel and relist. CDOM = this + DOM. Leave blank if never relisted.
+                </p>
               </div>
 
               {/* Property Type */}
