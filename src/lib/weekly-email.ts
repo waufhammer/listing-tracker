@@ -158,11 +158,10 @@ export function buildWeeklyEmail(opts: {
   sellers: EmailSeller[];
   entries: EmailEntry[];
   sendDate: string; // the Monday, YYYY-MM-DD
-  signatureHtml?: string | null;
   /** Test mode: To = Will only, no CC. */
   testMode?: boolean;
 }): WeeklyEmail {
-  const { listing, entries, sendDate, signatureHtml, testMode = true } = opts;
+  const { listing, entries, sendDate, testMode = true } = opts;
   const sellers = [...opts.sellers].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
   const { weekStart, weekEnd } = weekFor(sendDate);
   const warnings: string[] = [];
@@ -267,11 +266,9 @@ export function buildWeeklyEmail(opts: {
   h.push(`<p style="${P}">Never hesitate to reach out with any questions!</p>`);
   h.push(`<p style="margin:0">Cheers,<br>Will + Kelly</p>`);
   h.push(`</div>`);
-  if (signatureHtml?.trim()) {
-    h.push(`<br><div>${signatureHtml}</div>`);
-  } else {
-    warnings.push("No Gmail signature saved in Admin > Settings.");
-  }
+  // Will's signature is not part of this HTML: the Gmail draft is created
+  // with includeSignature, so Gmail appends his live saved signature (the
+  // connector strips externally hosted images like the logo from htmlBody).
   const html = h.join("\n");
 
   // ── Plain text (Gmail shows HTML; this is the fallback part) ───────────

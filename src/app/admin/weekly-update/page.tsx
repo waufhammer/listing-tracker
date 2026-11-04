@@ -109,6 +109,7 @@ function WeeklyUpdatePreview() {
             </ul>
           )}
           <div className="px-5 py-4" dangerouslySetInnerHTML={{ __html: email.html }} />
+          <p className="border-t border-gray-100 px-5 py-2 text-xs text-gray-400">Gmail adds your saved signature below this when the draft is created.</p>
         </div>
       )}
     </div>

@@ -116,7 +116,7 @@ const handler = createMcpHandler(
       {
         title: "Get weekly seller emails",
         description:
-          "Finished weekly update emails (subject, to, cc, html) for Active listings, built from the tracker's fixed template. Use them exactly as given; never reword. test_mode true sends To Will only with no CC. existing_draft is set when a draft was already made for that week.",
+          "Finished weekly update emails (subject, to, cc, html, text) for Active listings, built from the tracker's fixed template. Use them exactly as given; never reword. Create drafts with includeSignature: true. test_mode true sends To Will only with no CC. existing_draft is set when a draft was already made for that week.",
         inputSchema: z.object({
           listing: listingRef.optional().describe("Omit for every Active listing"),
           send_date: isoDate.optional().describe("The Monday (defaults to this week's Monday, Pacific)"),

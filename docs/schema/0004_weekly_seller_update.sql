@@ -30,7 +30,8 @@ alter table listing_sellers enable row level security;
 --    while logged into admin are no longer logged at all.
 alter table page_views add column if not exists user_agent text;
 
--- 4. App settings (key/value). Holds the Gmail signature HTML.
+-- 4. App settings (key/value). Unused for now: the signature comes from
+--    Gmail itself (drafts are created with includeSignature).
 create table if not exists app_settings (
   key text primary key,
   value text,

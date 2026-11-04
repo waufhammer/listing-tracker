@@ -20,7 +20,7 @@ const entries = [
 assert.equal(mondayOnOrBefore("2026-11-11"), "2026-11-09");
 assert.deepEqual(weekFor("2026-11-09"), { weekStart: "2026-11-02", weekEnd: "2026-11-08" });
 
-const e = buildWeeklyEmail({ listing, sellers, entries, sendDate: "2026-11-09", signatureHtml: "<i>sig</i>", testMode: true });
+const e = buildWeeklyEmail({ listing, sellers, entries, sendDate: "2026-11-09", testMode: true });
 assert.equal(e.subject, "2568 28th Ave W: weekly update, November 9");
 assert.deepEqual(e.to, ["will.aufhammer@compass.com"]);
 assert.deepEqual(e.cc, []);
@@ -40,7 +40,6 @@ assert.match(e.html, /waiting on feedback from 1 showing and/);
 assert.match(e.html, /Sunday 11\/8: 11 groups, 2 disclosure requests\./);
 assert.match(e.html, /TYPE NEXT STEPS HERE/);
 assert.match(e.html, /href="https:\/\/listings.aufhammerhomes.com\/sample"/);
-assert.match(e.html, /<i>sig<\/i>/);
 assert.doesNotMatch(e.html.replace("— and the yard", ""), /—/, "no em dashes in template text");
 assert.doesNotMatch(e.html, /online views?|zillow|redfin|\boffers?\b|\bprices?\b/i, "no views, offers, or price");
 
@@ -51,7 +50,7 @@ assert.match(quiet.html, /<td>Buyer showings<\/td><td><b>0<\/b><\/td><td>0<\/td>
 assert.doesNotMatch(quiet.html, /SHOWING FEEDBACK|OPEN HOUSE/);
 assert.deepEqual(quiet.to, ["s@example.com", "t@example.com"]);
 assert.deepEqual(quiet.cc, ["kelly.aufhammer@compass.com"]);
-assert.ok(quiet.warnings.some((w) => /signature/.test(w)));
+assert.deepEqual(quiet.warnings, []);
 
 // First Look: no DOM line
 const fl = buildWeeklyEmail({ listing: { ...listing, first_look: true }, sellers, entries, sendDate: "2026-11-09" });

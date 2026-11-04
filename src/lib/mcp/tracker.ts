@@ -179,7 +179,7 @@ export async function getWeeklyEmails(opts: { listing?: string; send_date?: stri
     ...weekFor(sendDate),
     test_mode: opts.test_mode,
     instructions:
-      "Create one Gmail draft per email using subject, to, cc, and html exactly as given (do not reword). Skip any listing with existing_draft set. After creating each draft, call record_weekly_draft. Never send.",
+      "Create one Gmail draft per email: subject, to, cc exactly as given, htmlBody = html and body = text exactly as given (do not reword), and includeSignature: true so Gmail adds Will's signature. Skip any listing with existing_draft set. After creating each draft, call record_weekly_draft. Never send.",
     emails,
   };
 }
@@ -235,8 +235,7 @@ export async function getWeeklyChecklist(send_date?: string) {
       ],
     });
   }
-  const { data: sig } = await supabaseAdmin.from("app_settings").select("value").eq("key", "email_signature_html").maybeSingle();
-  return { send_date: sendDate, week_start: weekStart, week_end: weekEnd, signature_saved: !!sig?.value, listings: out };
+  return { send_date: sendDate, week_start: weekStart, week_end: weekEnd, listings: out };
 }
 
 export const PLACEHOLDER = NEXT_STEPS_PLACEHOLDER;

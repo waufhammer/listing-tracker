@@ -380,26 +380,6 @@ export async function getPageViewLog(listingId: string, limit = 50) {
   return { data: data ?? [], error: error?.message ?? null };
 }
 
-// ── App settings ────────────────────────────────────────────────────────────
-
-export async function getSetting(key: string) {
-  await requireAdmin();
-  const { data, error } = await supabaseAdmin
-    .from("app_settings")
-    .select("value")
-    .eq("key", key)
-    .maybeSingle();
-  return { value: (data?.value as string | null) ?? null, error: error?.message ?? null };
-}
-
-export async function setSetting(key: string, value: string) {
-  await requireAdmin();
-  const { error } = await supabaseAdmin
-    .from("app_settings")
-    .upsert({ key, value, updated_at: new Date().toISOString() });
-  return { error: error?.message ?? null };
-}
-
 // ── Weekly seller update ────────────────────────────────────────────────────
 
 export async function getWeeklyEmailPreview(listingId: string, sendDate: string) {

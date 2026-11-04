@@ -10,7 +10,6 @@ const navItems = [
   { label: "Listings", href: "/admin" },
   { label: "Analytics", href: "/admin/analytics" },
   { label: "Weekly Update", href: "/admin/weekly-update" },
-  { label: "Settings", href: "/admin/settings" },
 ];
 
 function NavContent({
