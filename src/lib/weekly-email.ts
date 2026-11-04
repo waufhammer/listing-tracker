@@ -247,8 +247,7 @@ export function buildWeeklyEmail(opts: {
     if (waitingCount > 0) {
       tail.push(`We&#39;re still waiting on feedback from ${plural(waitingCount, "showing", "showings")} and will pass it along as soon as we hear back.`);
     }
-    tail.push(`If any feedback raises questions, send them our way and we&#39;ll follow up with the agent directly.`);
-    h.push(`<p style="${P}">${tail.join(" ")}</p>`);
+    if (tail.length) h.push(`<p style="${P}">${tail.join(" ")}</p>`);
   }
 
   if (openHouses.length) {
@@ -288,7 +287,6 @@ export function buildWeeklyEmail(opts: {
       t.push(`- ${shortDate(e.date)}${who} (${kind}): "${e.display_feedback!.trim()}"`);
     }
     if (waitingCount > 0) t.push(`We're still waiting on feedback from ${plural(waitingCount, "showing", "showings")} and will pass it along as soon as we hear back.`);
-    t.push("If any feedback raises questions, send them our way and we'll follow up with the agent directly.");
   }
   if (openHouses.length) {
     t.push("", "OPEN HOUSE");
