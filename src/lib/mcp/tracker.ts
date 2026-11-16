@@ -204,7 +204,10 @@ export async function recordWeeklyDraft(input: { listing_id: string; send_date: 
     .select()
     .single();
   if (error) return { error: error.message };
-  return { recorded: data };
+  return {
+    recorded: data,
+    saved_summary: `Recorded weekly draft: ${await addressOf(input.listing_id)} | week of ${data.send_date}${input.test_mode ? " (test)" : ""}`,
+  };
 }
 
 /** Monday 8am checklist: what's missing before the noon drafts. */
@@ -262,6 +265,46 @@ function clean(obj: Row): Row {
   return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
 }
 
+// ── saved_summary: one line the agent echoes back to Will after a write ──
+
+const TYPE_LABEL: Record<string, string> = {
+  buyer_showing: "Buyer showing",
+  agent_preview: "Agent preview",
+  open_house: "Open house",
+};
+
+async function addressOf(listingId: unknown): Promise<string> {
+  const { data } = await supabaseAdmin.from("listings").select("property_address").eq("id", String(listingId)).maybeSingle();
+  return (data?.property_address as string | undefined) ?? `listing ${listingId}`;
+}
+
+/** Fields in `requested` whose saved value differs from `before`. */
+function changedFields(before: Row | null, after: Row, requested: string[]): { changed: string[]; unchanged: string[] } {
+  const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  const changed = requested.filter((k) => !before || !same(before[k], after[k]));
+  return { changed, unchanged: requested.filter((k) => !changed.includes(k)) };
+}
+
+function summaryLine(parts: {
+  action: string;
+  address: string;
+  entry?: Row;
+  changed: string[];
+  unchanged?: string[];
+}): string {
+  const e = parts.entry;
+  const what = e
+    ? [
+        e.date && `${e.date}`,
+        e.type && (TYPE_LABEL[String(e.type)] ?? String(e.type)),
+        e.agent_name ? `agent ${e.agent_name}` : null,
+      ].filter(Boolean).join(", ")
+    : "";
+  const fields = parts.changed.length ? `fields: ${parts.changed.join(", ")}` : "no fields changed";
+  const same = parts.unchanged?.length ? ` (already the same: ${parts.unchanged.join(", ")})` : "";
+  return `${parts.action}: ${parts.address}${what ? ` | ${what}` : ""} | ${fields}${same}`;
+}
+
 export async function addActivity(input: {
   listing_id: string;
   confirmed: boolean;
@@ -290,7 +333,11 @@ export async function addActivity(input: {
   });
   const { data, error } = await supabaseAdmin.from("activity_entries").insert(row).select().single();
   if (error) return { error: error.message };
-  return { saved: data, note: "Feedback (if any) is hidden from the client until Will makes it visible." };
+  return {
+    saved: data,
+    saved_summary: summaryLine({ action: "Added activity", address: String(r.listing.property_address), entry: data, changed: Object.keys(clean(fields)) }),
+    note: "Feedback (if any) is hidden from the client until Will makes it visible.",
+  };
 }
 
 export async function updateActivity(input: { id: string; confirmed: boolean } & Row) {
@@ -300,10 +347,15 @@ export async function updateActivity(input: { id: string; confirmed: boolean } &
   void _c;
   const updates = clean(fields);
   if (Object.keys(updates).length === 0) return { error: "Nothing to update." };
+  const { data: before } = await supabaseAdmin.from("activity_entries").select().eq("id", id).maybeSingle();
+  if (!before) return { error: "No activity entry with that id." };
   const { data, error } = await supabaseAdmin.from("activity_entries").update(updates).eq("id", id).select().maybeSingle();
   if (error) return { error: error.message };
   if (!data) return { error: "No activity entry with that id." };
-  return { saved: data };
+  return {
+    saved: data,
+    saved_summary: summaryLine({ action: "Updated activity", address: await addressOf(data.listing_id), entry: data, ...changedFields(before, data, Object.keys(updates)) }),
+  };
 }
 
 export async function addPlatformViews(input: {
@@ -328,7 +380,15 @@ export async function addPlatformViews(input: {
   });
   const { data, error } = await supabaseAdmin.from("platform_views").insert(row).select().single();
   if (error) return { error: error.message };
-  return { saved: data };
+  return {
+    saved: data,
+    saved_summary: summaryLine({
+      action: "Added online views",
+      address: String(r.listing.property_address),
+      entry: { date: input.date },
+      changed: ["zillow_views", "redfin_views", "compass_views"].filter((k) => row[k] !== undefined).map((k) => `${k}=${row[k]}`),
+    }),
+  };
 }
 
 export async function updateListing(input: { listing_id: string; confirmed: boolean } & Row) {
@@ -348,7 +408,10 @@ export async function updateListing(input: { listing_id: string; confirmed: bool
   }
   const { data, error } = await supabaseAdmin.from("listings").update(updates).eq("id", r.listing.id as string).select(LISTING_FIELDS).single();
   if (error) return { error: error.message };
-  return { saved: listingSummary(data as Row) };
+  return {
+    saved: listingSummary(data as Row),
+    saved_summary: summaryLine({ action: "Updated listing", address: String((data as Row).property_address), ...changedFields(r.listing, data as Row, Object.keys(updates)) }),
+  };
 }
 
 export async function addSeller(input: { listing_id: string; confirmed: boolean; first_name: string; last_name?: string; email?: string }) {
@@ -363,7 +426,14 @@ export async function addSeller(input: { listing_id: string; confirmed: boolean;
     .select()
     .single();
   if (error) return { error: error.message };
-  return { saved: data };
+  return {
+    saved: data,
+    saved_summary: summaryLine({
+      action: `Added seller ${[input.first_name, input.last_name].filter(Boolean).join(" ")}`,
+      address: String(r.listing.property_address),
+      changed: Object.keys(clean({ first_name: input.first_name, last_name: input.last_name, email: input.email })),
+    }),
+  };
 }
 
 export async function updateSeller(input: { id: string; confirmed: boolean; first_name?: string; last_name?: string; email?: string }) {
@@ -371,8 +441,17 @@ export async function updateSeller(input: { id: string; confirmed: boolean; firs
   if (c) return c;
   const updates = clean({ first_name: input.first_name, last_name: input.last_name, email: input.email });
   if (Object.keys(updates).length === 0) return { error: "Nothing to update." };
+  const { data: before } = await supabaseAdmin.from("listing_sellers").select().eq("id", input.id).maybeSingle();
+  if (!before) return { error: "No seller with that id." };
   const { data, error } = await supabaseAdmin.from("listing_sellers").update(updates).eq("id", input.id).select().maybeSingle();
   if (error) return { error: error.message };
   if (!data) return { error: "No seller with that id." };
-  return { saved: data };
+  return {
+    saved: data,
+    saved_summary: summaryLine({
+      action: `Updated seller ${[data.first_name, data.last_name].filter(Boolean).join(" ")}`,
+      address: await addressOf(data.listing_id),
+      ...changedFields(before, data, Object.keys(updates)),
+    }),
+  };
 }
