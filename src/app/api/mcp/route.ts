@@ -43,6 +43,9 @@ const confirmed = z
   .describe(
     "true only after Will has replied OK to a summary that lists every field being saved, in this conversation. Never reuse an earlier OK for a different change. false returns without saving."
   );
+const RAW_DESC = "Private: feedback exactly as the agent wrote it. Never shown to the client. Required whenever display_feedback is given and the entry has none.";
+const DISPLAY_DESC =
+  "Client-facing version of the feedback. No buyer names, family status, age, or other protected details. Keep those in raw_feedback.";
 const readOnly = { readOnlyHint: true, openWorldHint: false };
 const write = { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
 
@@ -163,8 +166,8 @@ const handler = createMcpHandler(
           is_repeat_visit: z.boolean().optional(),
           follow_up_sent: z.boolean().optional(),
           buyer_packet_requested: z.boolean().optional().describe("Buyer requested the disclosure package"),
-          raw_feedback: z.string().optional().describe("Private: feedback exactly as the agent wrote it"),
-          display_feedback: z.string().optional().describe("Client-facing version"),
+          raw_feedback: z.string().optional().describe(RAW_DESC),
+          display_feedback: z.string().optional().describe(DISPLAY_DESC),
           open_house_groups: z.number().int().min(0).optional(),
           open_house_disclosure_requests: z.number().int().min(0).optional(),
         }),
@@ -187,9 +190,14 @@ const handler = createMcpHandler(
           is_repeat_visit: z.boolean().optional(),
           follow_up_sent: z.boolean().optional(),
           buyer_packet_requested: z.boolean().optional(),
-          raw_feedback: z.string().optional(),
-          display_feedback: z.string().optional(),
-          feedback_visible: z.boolean().optional().describe("true shows display_feedback to the client and puts it in the weekly email"),
+          raw_feedback: z.string().optional().describe(RAW_DESC),
+          display_feedback: z.string().optional().describe(DISPLAY_DESC),
+          feedback_visible: z
+            .boolean()
+            .optional()
+            .describe(
+              "true shows display_feedback to the client and puts it in the weekly email. Only after Will has approved the exact client-facing text in this conversation; the server records that approval. Editing display_feedback on a visible entry hides it again until it is re-approved."
+            ),
           open_house_groups: z.number().int().min(0).optional(),
           open_house_disclosure_requests: z.number().int().min(0).optional(),
         }),

@@ -24,3 +24,9 @@ change in the dashboard.
   (64 hex characters, backfilled), `client_link_version`,
   `client_link_rotated_at`; the `client_link_requests` table for "Email me my
   link"; and `page_views.via`. Run before deploying Phase 1.
+- (no `0006`: Phase 2 had no schema change.)
+- `0007_feedback_approval.sql` — `activity_entries.feedback_approved_at` /
+  `feedback_approved_by`, a trigger that hides visible feedback again when
+  its text is edited without a new approval, and a one-time backfill
+  (`raw_feedback` from `display_feedback` where empty; already-visible
+  entries marked approved by `'legacy'`). Run before deploying Phase 3.
