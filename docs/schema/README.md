@@ -18,3 +18,9 @@ change in the dashboard.
   `open_house_disclosure_requests` to `activity_entries`, a count of buyer
   disclosure package requests at an Open House (Showing/Preview entries
   already had the boolean `buyer_packet_requested` for this).
+- `0004_weekly_seller_update.sql` — `listing_sellers`, `weekly_update_drafts`,
+  and `page_views.user_agent` for the weekly seller update.
+- `0005_client_access.sql` — private seller links: `listings.client_link_token`
+  (64 hex characters, backfilled), `client_link_version`,
+  `client_link_rotated_at`; the `client_link_requests` table for "Email me my
+  link"; and `page_views.via`. Run before deploying Phase 1.

@@ -26,6 +26,9 @@ function listingSummary(l: Row) {
     dom,
     cdom: isRelisted(listing) ? cumulativeDaysOnMarket(listing) : null,
     client_link: `${CLIENT_BASE_URL}/${l.slug}`,
+    // Sellers open the page with a private /s/<token> link (in the weekly
+    // emails); the token itself is never returned here.
+    client_link_active: true,
   };
 }
 
@@ -142,14 +145,14 @@ export async function getClientLinkViews(ref: string, limit = 50) {
   if ("error" in r) return r;
   const { data, error } = await supabaseAdmin
     .from("page_views")
-    .select("viewed_at, user_agent")
+    .select("viewed_at, user_agent, via")
     .eq("listing_id", r.listing.id as string)
     .order("viewed_at", { ascending: false })
     .limit(limit);
   if (error) return { error: error.message };
   return {
     listing: { id: r.listing.id, property_address: r.listing.property_address },
-    note: "Opens of the client link, newest first. Will's own visits while logged into admin are not logged. Forwarded links count as the client.",
+    note: "Opens of the client page, newest first. via: 'link' = opened the private link from an email, 'cookie' = returning visit on a device that opened it before, 'legacy_slug' = old /<slug> link during the grace period. Will's own visits while logged into admin are not logged. Link previews and bots are not logged.",
     views: data ?? [],
   };
 }

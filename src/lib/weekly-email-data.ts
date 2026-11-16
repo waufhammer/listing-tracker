@@ -6,7 +6,7 @@ import { buildWeeklyEmail, type EmailListing, type WeeklyEmail } from "./weekly-
 const ENTRY_FIELDS =
   "date, type, agent_name, buyer_packet_requested, display_feedback, feedback_visible, open_house_groups, open_house_disclosure_requests";
 const LISTING_FIELDS =
-  "id, slug, property_address, status, list_date, pending_date, sold_date, first_look, prior_days_on_market";
+  "id, slug, property_address, status, list_date, pending_date, sold_date, first_look, prior_days_on_market, client_link_token";
 
 export async function loadWeeklyEmail(
   listingId: string,
