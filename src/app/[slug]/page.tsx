@@ -8,26 +8,19 @@ import CumulativeActivityChart from "@/components/CumulativeActivityChart";
 import PageViewTracker from "@/components/PageViewTracker";
 import { effectiveDaysOnMarket, cumulativeDaysOnMarket, isRelisted } from "@/lib/days-on-market";
 import { WEEKLY_AFTER_DAYS } from "@/lib/weekly";
+import {
+  CLIENT_ACTIVITY_FIELDS,
+  CLIENT_LISTING_FIELDS,
+  CLIENT_PLATFORM_VIEW_FIELDS,
+  toClientEntry,
+  type ClientActivityEntry,
+} from "@/lib/client-safe";
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
 // ── Types ───────────────────────────────────────────────────────────────────
-
-interface ActivityEntry {
-  id: string;
-  date: string;
-  type: string;
-  agent_name?: string | null;
-  is_repeat_visit?: boolean;
-  buyer_packet_requested?: boolean;
-  display_feedback?: string | null;
-  feedback_visible?: boolean;
-  open_house_groups?: number | null;
-  open_house_disclosure_requests?: number | null;
-  created_at?: string;
-}
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -76,7 +69,7 @@ export default async function ClientDashboardPage({
 
   const { data: listing, error } = await supabaseAdmin
     .from("listings")
-    .select("*")
+    .select(CLIENT_LISTING_FIELDS)
     .eq("slug", slug)
     .single();
 
@@ -100,17 +93,20 @@ export default async function ClientDashboardPage({
   const [{ data: activityEntries }, { data: platformViews }] = await Promise.all([
     supabaseAdmin
       .from("activity_entries")
-      .select("*")
+      // created_at is only used here on the server for "Last updated";
+      // toClientEntry drops it with every other non-client field.
+      .select(`${CLIENT_ACTIVITY_FIELDS}, created_at`)
       .eq("listing_id", listing.id)
       .order("date", { ascending: false }),
     supabaseAdmin
       .from("platform_views")
-      .select("*")
+      .select(CLIENT_PLATFORM_VIEW_FIELDS)
       .eq("listing_id", listing.id)
       .order("date", { ascending: true }),
   ]);
 
-  const entries: ActivityEntry[] = activityEntries ?? [];
+  const rawEntries = (activityEntries ?? []) as Record<string, unknown>[];
+  const entries: ClientActivityEntry[] = rawEntries.map(toClientEntry);
   const views = platformViews ?? [];
 
   // ── Compute stats ─────────────────────────────────────────────────────
@@ -144,7 +140,10 @@ export default async function ClientDashboardPage({
   const disclosureRequests = entries.filter((e) => e.buyer_packet_requested).length + openHouseDisclosureRequests;
 
   // Last updated
-  const lastEntryCreated = entries.length > 0 ? entries[0].created_at : null;
+  const lastEntryCreated = rawEntries.reduce<string | null>((max, e) => {
+    const c = e.created_at as string | null;
+    return c && (!max || c > max) ? c : max;
+  }, null);
   const lastViewCreated = views.length > 0 ? views[views.length - 1].created_at : null;
   const lastUpdated = [lastEntryCreated, lastViewCreated]
     .filter(Boolean)

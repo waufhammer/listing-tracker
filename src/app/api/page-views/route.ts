@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { ADMIN_COOKIE, isValidAdminSession } from "@/lib/admin-session";
+import { isBotUserAgent } from "@/lib/bots";
 
 // Comma-separated IPs to skip logging for (e.g. the agent's own home/office
 // network), set via the EXCLUDED_VIEW_IPS env var. Behind Vercel, the real
@@ -17,15 +18,21 @@ function isExcludedIp(request: NextRequest): boolean {
   return !!clientIp && excluded.includes(clientIp);
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function POST(request: NextRequest) {
   try {
     const { listing_id } = await request.json();
 
-    if (!listing_id || typeof listing_id !== "string") {
+    if (!listing_id || typeof listing_id !== "string" || !UUID.test(listing_id)) {
       return NextResponse.json(
         { error: "listing_id is required" },
         { status: 400 }
       );
+    }
+
+    if (isBotUserAgent(request.headers.get("user-agent"))) {
+      return NextResponse.json({ success: true, excluded: true });
     }
 
     if (isExcludedIp(request)) {
@@ -36,6 +43,15 @@ export async function POST(request: NextRequest) {
     // so the view log only shows the client link being opened by others.
     if (await isValidAdminSession(request.cookies.get(ADMIN_COOKIE)?.value)) {
       return NextResponse.json({ success: true, excluded: true });
+    }
+
+    const { data: listing } = await supabaseAdmin
+      .from("listings")
+      .select("id")
+      .eq("id", listing_id)
+      .maybeSingle();
+    if (!listing) {
+      return NextResponse.json({ error: "Unknown listing" }, { status: 404 });
     }
 
     const row = {
