@@ -45,10 +45,8 @@ export async function resolveListing(ref: string): Promise<{ listing: Row } | Er
   const nq = norm(q);
   const matches = all.filter((l) => norm(l.property_address).includes(nq) || norm(l.client_name).includes(nq));
   if (matches.length === 1) return { listing: matches[0] };
-  // Several matches (e.g. a sold 1536 Thorndyke and the active 1537): Will
-  // almost always means the active one, so use it when it's the only one.
-  const activeMatches = matches.filter((l) => l.status === "active");
-  if (activeMatches.length === 1) return { listing: activeMatches[0] };
+  // Several matches (e.g. a sold and an active listing on the same street):
+  // never pick one. Return the candidates so Claude asks Will.
   const candidates = (matches.length ? matches : all).map((l) => ({
     id: l.id,
     property_address: l.property_address,
@@ -56,10 +54,19 @@ export async function resolveListing(ref: string): Promise<{ listing: Row } | Er
   }));
   return {
     error: matches.length
-      ? `"${ref}" matches ${matches.length} listings. Ask Will which one.`
+      ? `"${ref}" matches ${matches.length} listings. Ask Will which one, then use its id.`
       : `No listing matches "${ref}". Ask Will which listing he means; do not guess.`,
     candidates,
   };
+}
+
+/** Writes take the listing's uuid only, never an address, so a write can
+ *  never land on a guessed listing. */
+async function listingById(id: string): Promise<{ listing: Row } | Err> {
+  const { data, error } = await supabaseAdmin.from("listings").select(LISTING_FIELDS).eq("id", id).maybeSingle();
+  if (error) return { error: error.message };
+  if (!data) return { error: `No listing with id ${id}. Get the id from list_listings or get_listing.` };
+  return { listing: data as Row };
 }
 
 // ── Reads ────────────────────────────────────────────────────────────────
@@ -253,7 +260,7 @@ function clean(obj: Row): Row {
 }
 
 export async function addActivity(input: {
-  listing: string;
+  listing_id: string;
   confirmed: boolean;
   type: (typeof ACTIVITY_TYPES)[number];
   date: string;
@@ -268,9 +275,9 @@ export async function addActivity(input: {
 }) {
   const c = needsConfirm(input.confirmed);
   if (c) return c;
-  const r = await resolveListing(input.listing);
+  const r = await listingById(input.listing_id);
   if ("error" in r) return r;
-  const { listing: _l, confirmed: _c, ...fields } = input;
+  const { listing_id: _l, confirmed: _c, ...fields } = input;
   void _l; void _c;
   const row = clean({
     ...fields,
@@ -297,7 +304,7 @@ export async function updateActivity(input: { id: string; confirmed: boolean } &
 }
 
 export async function addPlatformViews(input: {
-  listing: string;
+  listing_id: string;
   confirmed: boolean;
   date: string;
   zillow_views?: number;
@@ -306,7 +313,7 @@ export async function addPlatformViews(input: {
 }) {
   const c = needsConfirm(input.confirmed);
   if (c) return c;
-  const r = await resolveListing(input.listing);
+  const r = await listingById(input.listing_id);
   if ("error" in r) return r;
   const row = clean({
     listing_id: r.listing.id,
@@ -321,12 +328,12 @@ export async function addPlatformViews(input: {
   return { saved: data };
 }
 
-export async function updateListing(input: { listing: string; confirmed: boolean } & Row) {
+export async function updateListing(input: { listing_id: string; confirmed: boolean } & Row) {
   const c = needsConfirm(input.confirmed);
   if (c) return c;
-  const r = await resolveListing(input.listing);
+  const r = await listingById(input.listing_id);
   if ("error" in r) return r;
-  const { listing: _l, confirmed: _c, ...fields } = input;
+  const { listing_id: _l, confirmed: _c, ...fields } = input;
   void _l; void _c;
   const updates = clean(fields);
   if (Object.keys(updates).length === 0) return { error: "Nothing to update." };
@@ -341,10 +348,10 @@ export async function updateListing(input: { listing: string; confirmed: boolean
   return { saved: listingSummary(data as Row) };
 }
 
-export async function addSeller(input: { listing: string; confirmed: boolean; first_name: string; last_name?: string; email?: string }) {
+export async function addSeller(input: { listing_id: string; confirmed: boolean; first_name: string; last_name?: string; email?: string }) {
   const c = needsConfirm(input.confirmed);
   if (c) return c;
-  const r = await resolveListing(input.listing);
+  const r = await listingById(input.listing_id);
   if ("error" in r) return r;
   const { count } = await supabaseAdmin.from("listing_sellers").select("id", { count: "exact", head: true }).eq("listing_id", r.listing.id as string);
   const { data, error } = await supabaseAdmin
