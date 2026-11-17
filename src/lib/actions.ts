@@ -138,6 +138,13 @@ export async function updateListing(
 
 export async function deleteListing(id: string) {
   await requireAdmin();
+  // client_link_requests.listing_id (0005) has no ON DELETE CASCADE, so
+  // detach those rows first (kept, listing_id cleared) or the delete fails.
+  const { error: detachError } = await supabaseAdmin
+    .from("client_link_requests")
+    .update({ listing_id: null })
+    .eq("listing_id", id);
+  if (detachError) return { error: detachError.message };
   const { error } = await stampedDelete("listings", id);
   return { error: error?.message ?? null };
 }
