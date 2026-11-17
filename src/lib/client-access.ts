@@ -81,5 +81,6 @@ export async function hasClientAccess(listing: { id: string; client_link_version
 /** Contact shown on the "Get your link" page. */
 export const CONTACT_EMAIL = WILL_EMAIL;
 export function contactPhone(): string | null {
-  return process.env.CONTACT_PHONE?.trim() || null;
+  // AGENT_PHONE is already set in Vercel (from the original setup).
+  return process.env.CONTACT_PHONE?.trim() || process.env.AGENT_PHONE?.trim() || null;
 }
