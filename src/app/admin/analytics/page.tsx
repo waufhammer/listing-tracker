@@ -243,10 +243,6 @@ export default function AnalyticsPage() {
   );
   const [propTypeFilter, setPropTypeFilter] = useState<PropTypeFilter>('all');
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
   async function fetchData() {
     setLoading(true);
 
@@ -290,6 +286,12 @@ export default function AnalyticsPage() {
     setSummaries(computed);
     setLoading(false);
   }
+
+  useEffect(() => {
+    // Load once on mount; fetchData sets loading state before awaiting.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchData();
+  }, []);
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -380,10 +382,12 @@ export default function AnalyticsPage() {
     );
   }
 
-  function SortHeader({ label, colKey, className }: { label: string; colKey: SortKey; className?: string }) {
+  // A plain function, not a component: a component defined inside this one
+  // would be re-created (and remounted) on every render.
+  function sortHeader(label: string, colKey: SortKey, className?: string) {
     const active = sortKey === colKey;
     return (
-      <th className={`px-3 sm:px-4 py-3 font-medium ${className ?? ""}`}>
+      <th key={colKey} className={`px-3 sm:px-4 py-3 font-medium ${className ?? ""}`}>
         <button
           onClick={() => handleSort(colKey)}
           className="inline-flex items-center gap-1 hover:text-gray-900 transition-colors"
@@ -541,17 +545,17 @@ export default function AnalyticsPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-left text-gray-600">
                 <tr>
-                  <SortHeader label="Property" colKey="property" />
-                  <SortHeader label="Status" colKey="status" />
-                  <SortHeader label="DOM" colKey="dom" />
-                  <SortHeader label="Groups" colKey="totalGroups" />
-                  <SortHeader label="Disclosures" colKey="disclosurePkgs" />
-                  <SortHeader label="Conv %" colKey="conversionPct" />
-                  <SortHeader label="Offers" colKey="offers" />
-                  <SortHeader label="List Price" colKey="listPrice" className="hidden sm:table-cell" />
-                  <SortHeader label="Sale Price" colKey="salePrice" className="hidden sm:table-cell" />
-                  <SortHeader label="Sold Date" colKey="soldDate" className="hidden sm:table-cell" />
-                  <SortHeader label="% Over/Under" colKey="pctOverUnder" className="hidden sm:table-cell" />
+                  {sortHeader("Property", "property")}
+                  {sortHeader("Status", "status")}
+                  {sortHeader("DOM", "dom")}
+                  {sortHeader("Groups", "totalGroups")}
+                  {sortHeader("Disclosures", "disclosurePkgs")}
+                  {sortHeader("Conv %", "conversionPct")}
+                  {sortHeader("Offers", "offers")}
+                  {sortHeader("List Price", "listPrice", "hidden sm:table-cell")}
+                  {sortHeader("Sale Price", "salePrice", "hidden sm:table-cell")}
+                  {sortHeader("Sold Date", "soldDate", "hidden sm:table-cell")}
+                  {sortHeader("% Over/Under", "pctOverUnder", "hidden sm:table-cell")}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
