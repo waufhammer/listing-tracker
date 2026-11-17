@@ -4,6 +4,19 @@ import { randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { supabaseAdmin } from "./supabase";
 import { ADMIN_COOKIE, isValidAdminSession } from "./admin-session";
+import { formatChangeLog } from "./change-log";
+
+/** Who changed a tracked row (read by the 0008 change_log trigger). */
+function byWill() {
+  return { updated_by: "will", updated_at: new Date().toISOString() };
+}
+
+/** Admin deletes: stamp the row first so change_log records Will, not the
+ *  last editor, as the actor of the delete. */
+async function stampedDelete(table: "listings" | "activity_entries" | "platform_views" | "listing_sellers", id: string) {
+  await supabaseAdmin.from(table).update(byWill()).eq("id", id);
+  return supabaseAdmin.from(table).delete().eq("id", id);
+}
 
 async function requireAdmin() {
   const cookieStore = await cookies();
@@ -55,7 +68,7 @@ export async function createListing(
   await requireAdmin();
   const { error } = await supabaseAdmin
     .from("listings")
-    .insert({ ...listingData, client_link_token: newClientLinkToken() });
+    .insert({ ...listingData, client_link_token: newClientLinkToken(), ...byWill() });
   return { error: error?.message ?? null };
 }
 
@@ -87,6 +100,7 @@ export async function rotateClientLink(id: string) {
   const { error } = await supabaseAdmin
     .from("listings")
     .update({
+      ...byWill(),
       client_link_token: newClientLinkToken(),
       client_link_version: (cur.client_link_version ?? 1) + 1,
       client_link_rotated_at: new Date().toISOString(),
@@ -117,17 +131,14 @@ export async function updateListing(
   await requireAdmin();
   const { error } = await supabaseAdmin
     .from("listings")
-    .update(updateData)
+    .update({ ...updateData, ...byWill() })
     .eq("id", id);
   return { error: error?.message ?? null };
 }
 
 export async function deleteListing(id: string) {
   await requireAdmin();
-  const { error } = await supabaseAdmin
-    .from("listings")
-    .delete()
-    .eq("id", id);
+  const { error } = await stampedDelete("listings", id);
   return { error: error?.message ?? null };
 }
 
@@ -234,7 +245,7 @@ export async function createActivityEntry(
   }
   const { error } = await supabaseAdmin
     .from("activity_entries")
-    .insert(row);
+    .insert({ ...row, ...byWill() });
   return { error: error?.message ?? null };
 }
 
@@ -261,7 +272,7 @@ export async function updateActivityEntry(
   }
   const { error } = await supabaseAdmin
     .from("activity_entries")
-    .update(row)
+    .update({ ...row, ...byWill() })
     .eq("id", id);
   return { error: error?.message ?? null };
 }
@@ -284,7 +295,7 @@ export async function approveLegacyFeedback(id: string) {
   await requireAdmin();
   const { error } = await supabaseAdmin
     .from("activity_entries")
-    .update({ feedback_approved_by: "will", feedback_approved_at: new Date().toISOString() })
+    .update({ ...byWill(), feedback_approved_by: "will", feedback_approved_at: new Date().toISOString() })
     .eq("id", id)
     .eq("feedback_approved_by", "legacy");
   return { error: error?.message ?? null };
@@ -295,17 +306,14 @@ export async function hideFeedback(id: string) {
   await requireAdmin();
   const { error } = await supabaseAdmin
     .from("activity_entries")
-    .update({ feedback_visible: false })
+    .update({ ...byWill(), feedback_visible: false })
     .eq("id", id);
   return { error: error?.message ?? null };
 }
 
 export async function deleteActivityEntry(id: string) {
   await requireAdmin();
-  const { error } = await supabaseAdmin
-    .from("activity_entries")
-    .delete()
-    .eq("id", id);
+  const { error } = await stampedDelete("activity_entries", id);
   return { error: error?.message ?? null };
 }
 
@@ -327,7 +335,8 @@ export async function createPlatformView(
   await requireAdmin();
   const { error } = await supabaseAdmin
     .from("platform_views")
-    .insert(entry);
+    .insert({ ...entry, ...byWill() });
+  if (error?.code === "23505") return { error: "There is already an online views snapshot for that date. Edit it instead." };
   return { error: error?.message ?? null };
 }
 
@@ -338,17 +347,14 @@ export async function updatePlatformView(
   await requireAdmin();
   const { error } = await supabaseAdmin
     .from("platform_views")
-    .update(updates)
+    .update({ ...updates, ...byWill() })
     .eq("id", id);
   return { error: error?.message ?? null };
 }
 
 export async function deletePlatformView(id: string) {
   await requireAdmin();
-  const { error } = await supabaseAdmin
-    .from("platform_views")
-    .delete()
-    .eq("id", id);
+  const { error } = await stampedDelete("platform_views", id);
   return { error: error?.message ?? null };
 }
 
@@ -463,19 +469,19 @@ export async function createSeller(seller: {
   sort_order?: number;
 }) {
   await requireAdmin();
-  const { error } = await supabaseAdmin.from("listing_sellers").insert(seller);
+  const { error } = await supabaseAdmin.from("listing_sellers").insert({ ...seller, ...byWill() });
   return { error: error?.message ?? null };
 }
 
 export async function updateSeller(id: string, updates: Record<string, unknown>) {
   await requireAdmin();
-  const { error } = await supabaseAdmin.from("listing_sellers").update(updates).eq("id", id);
+  const { error } = await supabaseAdmin.from("listing_sellers").update({ ...updates, ...byWill() }).eq("id", id);
   return { error: error?.message ?? null };
 }
 
 export async function deleteSeller(id: string) {
   await requireAdmin();
-  const { error } = await supabaseAdmin.from("listing_sellers").delete().eq("id", id);
+  const { error } = await stampedDelete("listing_sellers", id);
   return { error: error?.message ?? null };
 }
 
@@ -498,4 +504,20 @@ export async function getWeeklyEmailPreview(listingId: string, sendDate: string)
   await requireAdmin();
   const { loadWeeklyEmail } = await import("./weekly-email-data");
   return loadWeeklyEmail(listingId, sendDate, { testMode: true });
+}
+
+// ── Change history (0008) ──────────────────────────────────────────────────
+
+export async function getChangeLogForListing(listingId: string, limit = 200) {
+  await requireAdmin();
+  const { data, error } = await supabaseAdmin
+    .from("change_log")
+    .select("at, actor, action, table_name, row_id, before, after")
+    .eq("listing_id", listingId)
+    .order("at", { ascending: false })
+    .limit(limit);
+  const rows = formatChangeLog((data ?? []) as Record<string, unknown>[]).filter(
+    (x) => !("changed" in x) || Object.keys(x.changed).length > 0
+  );
+  return { data: rows, error: error?.message ?? null };
 }

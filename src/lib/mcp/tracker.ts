@@ -7,6 +7,7 @@ import { supabaseAdmin } from "@/lib/supabase";
 import { cumulativeDaysOnMarket, effectiveDaysOnMarket, isRelisted } from "@/lib/days-on-market";
 import { NEXT_STEPS_PLACEHOLDER, mondayOnOrBefore, pacificToday, weekFor, CLIENT_BASE_URL } from "@/lib/weekly-email";
 import { loadWeeklyEmail } from "@/lib/weekly-email-data";
+import { formatChangeLog } from "@/lib/change-log";
 
 export const ACTIVITY_TYPES = ["buyer_showing", "agent_preview", "open_house"] as const;
 export const LISTING_STATUSES = ["prepping", "active", "pending", "sold"] as const;
@@ -157,6 +158,23 @@ export async function getClientLinkViews(ref: string, limit = 50) {
   };
 }
 
+export async function getChangeLog(ref: string, limit = 50) {
+  const r = await resolveListing(ref);
+  if ("error" in r) return r;
+  const { data, error } = await supabaseAdmin
+    .from("change_log")
+    .select("at, actor, action, table_name, row_id, before, after")
+    .eq("listing_id", r.listing.id as string)
+    .order("at", { ascending: false })
+    .limit(limit);
+  if (error) return { error: error.message };
+  return {
+    listing: { id: r.listing.id, property_address: r.listing.property_address },
+    note: "Every change to this listing, its activity, online views and sellers, newest first. actor: 'claude' = the connector, 'will' = admin. For updates, only changed fields are shown.",
+    changes: formatChangeLog((data ?? []) as Row[]).filter((x) => !("changed" in x) || Object.keys(x.changed).length > 0),
+  };
+}
+
 function resolveSendDate(sendDate?: string): string {
   return mondayOnOrBefore(sendDate ?? pacificToday());
 }
@@ -261,6 +279,17 @@ function needsConfirm(confirmed: boolean): Err | null {
     : { error: "Not saved. Show Will a summary of exactly what will be saved, wait for his OK, then call again with confirmed: true." };
 }
 
+/** Who changed a tracked row (read by the 0008 change_log trigger). */
+function byClaude() {
+  return { updated_by: LOGGED_BY, updated_at: new Date().toISOString() };
+}
+
+const ENTRY_FIELDS_FOR_DUP = "id, date, type, agent_name, raw_feedback, display_feedback, open_house_groups, source_message_id, showingtime_id, logged_by, created_at";
+
+function escapeLike(s: string) {
+  return s.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
 function clean(obj: Row): Row {
   return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
 }
@@ -323,21 +352,62 @@ export async function addActivity(input: {
   display_feedback?: string;
   open_house_groups?: number;
   open_house_disclosure_requests?: number;
+  source_message_id?: string;
+  showingtime_id?: string;
+  allow_duplicate?: boolean;
 }) {
   const c = needsConfirm(input.confirmed);
   if (c) return c;
   if (input.display_feedback && !input.raw_feedback) return NEEDS_RAW;
   const r = await listingById(input.listing_id);
   if ("error" in r) return r;
-  const { listing_id: _l, confirmed: _c, ...fields } = input;
+  const { listing_id: _l, confirmed: _c, allow_duplicate, ...fields } = input;
   void _l; void _c;
+
+  // Same listing, date and type, and the same agent (case-insensitive) for
+  // showings and previews: probably logged already (e.g. from both the
+  // ShowingTime email and a text). Ask Will before saving a second one.
+  if (!allow_duplicate) {
+    let dq = supabaseAdmin
+      .from("activity_entries")
+      .select(ENTRY_FIELDS_FOR_DUP)
+      .eq("listing_id", r.listing.id as string)
+      .eq("date", input.date)
+      .eq("type", input.type);
+    if (input.type !== "open_house") {
+      dq = input.agent_name?.trim() ? dq.ilike("agent_name", escapeLike(input.agent_name.trim())) : dq.is("agent_name", null);
+    }
+    const { data: dups, error: dupError } = await dq;
+    if (dupError) return { error: dupError.message };
+    if (dups && dups.length > 0) {
+      return {
+        error: "possible_duplicate",
+        existing: dups,
+        note: "Not saved. This looks like an entry that's already logged. Show Will the existing entry; save a second one only if he says it's a separate visit, with allow_duplicate: true.",
+      };
+    }
+  }
+
   const row = clean({
     ...fields,
     listing_id: r.listing.id,
     feedback_visible: false, // new feedback always starts hidden from the client
     logged_by: LOGGED_BY,
+    ...byClaude(),
   });
   const { data, error } = await supabaseAdmin.from("activity_entries").insert(row).select().single();
+  if (error?.code === "23505" && (input.source_message_id || input.showingtime_id)) {
+    const { data: existing } = await supabaseAdmin
+      .from("activity_entries")
+      .select(ENTRY_FIELDS_FOR_DUP)
+      .or(
+        [
+          input.source_message_id && `source_message_id.eq.${JSON.stringify(input.source_message_id)}`,
+          input.showingtime_id && `showingtime_id.eq.${JSON.stringify(input.showingtime_id)}`,
+        ].filter(Boolean).join(",")
+      );
+    return { error: "already_logged", existing: existing ?? [], note: "Not saved. This email or ShowingTime appointment is already logged." };
+  }
   if (error) return { error: error.message };
   return {
     saved: data,
@@ -357,6 +427,7 @@ export async function updateActivity(input: { id: string; confirmed: boolean } &
   if (!before) return { error: "No activity entry with that id." };
   if (updates.display_feedback && !updates.raw_feedback && !before.raw_feedback) return NEEDS_RAW;
   const requested = Object.keys(updates);
+  Object.assign(updates, byClaude());
   if (updates.feedback_visible === true) {
     // Will approved the exact client-facing text in chat (see the tool
     // description). Stamping the approval also keeps the text visible when
@@ -396,8 +467,23 @@ export async function addPlatformViews(input: {
     redfin_views: input.redfin_views,
     compass_views: input.compass_views,
     logged_by: LOGGED_BY,
+    ...byClaude(),
   });
+  const sameDate = () =>
+    supabaseAdmin
+      .from("platform_views")
+      .select("id, date, zillow_views, redfin_views, compass_views, logged_by")
+      .eq("listing_id", r.listing.id as string)
+      .eq("date", input.date);
+  const alreadyLogged = (existing: unknown[] | null) => ({
+    error: "already_logged",
+    existing: existing ?? [],
+    note: "Not saved. There is already a snapshot for that date. Ask Will whether to leave it.",
+  });
+  const { data: existing } = await sameDate();
+  if (existing && existing.length > 0) return alreadyLogged(existing);
   const { data, error } = await supabaseAdmin.from("platform_views").insert(row).select().single();
+  if (error?.code === "23505") return alreadyLogged((await sameDate()).data);
   if (error) return { error: error.message };
   return {
     saved: data,
@@ -426,7 +512,7 @@ export async function updateListing(input: { listing_id: string; confirmed: bool
   if (updates.status === "sold" && !updates.sold_date && !r.listing.sold_date) {
     return { error: "A sold_date is required when status is sold." };
   }
-  const { data, error } = await supabaseAdmin.from("listings").update(updates).eq("id", r.listing.id as string).select(LISTING_FIELDS).single();
+  const { data, error } = await supabaseAdmin.from("listings").update({ ...updates, ...byClaude() }).eq("id", r.listing.id as string).select(LISTING_FIELDS).single();
   if (error) return { error: error.message };
   return {
     saved: listingSummary(data as Row),
@@ -442,7 +528,7 @@ export async function addSeller(input: { listing_id: string; confirmed: boolean;
   const { count } = await supabaseAdmin.from("listing_sellers").select("id", { count: "exact", head: true }).eq("listing_id", r.listing.id as string);
   const { data, error } = await supabaseAdmin
     .from("listing_sellers")
-    .insert(clean({ listing_id: r.listing.id, first_name: input.first_name, last_name: input.last_name, email: input.email, sort_order: count ?? 0 }))
+    .insert(clean({ listing_id: r.listing.id, first_name: input.first_name, last_name: input.last_name, email: input.email, sort_order: count ?? 0, ...byClaude() }))
     .select()
     .single();
   if (error) return { error: error.message };
@@ -463,7 +549,7 @@ export async function updateSeller(input: { id: string; confirmed: boolean; firs
   if (Object.keys(updates).length === 0) return { error: "Nothing to update." };
   const { data: before } = await supabaseAdmin.from("listing_sellers").select().eq("id", input.id).maybeSingle();
   if (!before) return { error: "No seller with that id." };
-  const { data, error } = await supabaseAdmin.from("listing_sellers").update(updates).eq("id", input.id).select().maybeSingle();
+  const { data, error } = await supabaseAdmin.from("listing_sellers").update({ ...updates, ...byClaude() }).eq("id", input.id).select().maybeSingle();
   if (error) return { error: error.message };
   if (!data) return { error: "No seller with that id." };
   return {

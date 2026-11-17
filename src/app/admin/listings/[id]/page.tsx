@@ -8,6 +8,7 @@ import { useAdminUser } from "@/lib/admin-user-context";
 import { uploadPhotoWithTimeout } from "@/lib/upload-with-timeout";
 import { effectiveDaysOnMarket, cumulativeDaysOnMarket, isRelisted, todayDateString } from "@/lib/days-on-market";
 import ListingSellersPanel from "@/components/ListingSellersPanel";
+import ListingHistory from "@/components/ListingHistory";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -654,6 +655,7 @@ export default function ListingDetailPage() {
       </div>
 
       <ListingSellersPanel listingId={listing.id} slug={listing.slug} status={listing.status} />
+      <ListingHistory listingId={listing.id} />
 
       {/* ════════════════════════════════════════════════════════════════════
           2. ACTION BUTTONS

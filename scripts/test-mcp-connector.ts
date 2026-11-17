@@ -20,6 +20,8 @@ const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPAB
 const hasColumn = async (table: string, col: string) => !(await db.from(table).select(col).limit(1)).error;
 (async () => {
   const schema0005 = await hasColumn("listings", "client_link_token");
+  const schema0008 = await hasColumn("activity_entries", "updated_by");
+  if (!schema0008) console.log("NOTE docs/schema/0008_change_log_and_dedupe.sql is not applied; write and change-log checks will SKIP (every write sets updated_by).");
   if (!schema0005) console.log("NOTE docs/schema/0005_client_access.sql is not applied; client-access checks will SKIP.");
   // Admin session
   let r = await fetch(`${B}/admin`, { headers: { cookie: "admin_session=authenticated" }, redirect: "manual" });
@@ -113,9 +115,30 @@ const hasColumn = async (table: string, col: string) => !(await db.from(table).s
   ok(c.isError && /No listing with id/.test(c.data.error), "write with unknown listing_id saves nothing");
   c = await call("add_seller", { listing_id: thorndyke.id, confirmed: false, first_name: "Test" });
   ok(c.isError && /Not saved/.test(c.data.error), "write without confirmation does not save");
-  c = await call("update_listing", { listing_id: thorndyke.id, confirmed: true, property_address: "1537 Thorndyke Ave W" });
-  ok(!c.isError && c.data.saved?.property_address === "1537 Thorndyke Ave W", "confirmed no-op listing edit saves");
-  ok(c.data.saved_summary === "Updated listing: 1537 Thorndyke Ave W | no fields changed (already the same: property_address)", `write returns saved_summary: ${c.data.saved_summary}`);
+  if (!schema0008) skip("confirmed no-op listing edit + saved_summary", "needs 0008");
+  else {
+    c = await call("update_listing", { listing_id: thorndyke.id, confirmed: true, property_address: "1537 Thorndyke Ave W" });
+    ok(!c.isError && c.data.saved?.property_address === "1537 Thorndyke Ave W", "confirmed no-op listing edit saves");
+    ok(c.data.saved_summary === "Updated listing: 1537 Thorndyke Ave W | no fields changed (already the same: property_address)", `write returns saved_summary: ${c.data.saved_summary}`);
+  }
+  // Phase 4: duplicates are refused before anything is saved; change history.
+  if (!schema0008) skip("duplicate + change-log checks", "needs 0008");
+  else {
+    const acts = (await call("get_activity", { listing: thorndyke.id })).data.entries as { date: string; type: string; agent_name: string | null }[];
+    const sh = acts.find((e) => e.type !== "open_house" && e.agent_name);
+    if (sh) {
+      c = await call("add_activity", { listing_id: thorndyke.id, confirmed: true, type: sh.type, date: sh.date, agent_name: sh.agent_name!.toUpperCase() });
+      ok(c.isError && c.data.error === "possible_duplicate" && c.data.existing?.length >= 1, "same listing/date/type/agent (any case) returns possible_duplicate, nothing saved");
+    } else skip("possible_duplicate", "no showing with an agent name");
+    const pvs = (await call("get_platform_views", { listing: thorndyke.id })).data.snapshots as { date: string }[];
+    if (pvs?.length) {
+      c = await call("add_platform_views", { listing_id: thorndyke.id, confirmed: true, date: pvs[0].date, zillow_views: 1 });
+      ok(c.isError && c.data.error === "already_logged", "second online-views snapshot for a date returns already_logged, nothing saved");
+    } else skip("platform views duplicate", "no snapshots");
+    c = await call("get_change_log", { listing: thorndyke.id, limit: 20 });
+    ok(!c.isError && Array.isArray(c.data.changes) && !/[0-9a-f]{64}/.test(JSON.stringify(c.data)), "get_change_log works and never shows the client link token");
+  }
+
   // Phase 3: client-facing text needs the agent's original words; guidance in descriptions.
   c = await call("add_activity", { listing_id: thorndyke.id, confirmed: true, type: "buyer_showing", date: "2026-11-01", display_feedback: "Liked the kitchen." });
   ok(c.isError && /raw_feedback/.test(c.data.error), "display_feedback without raw_feedback is refused (nothing saved)");

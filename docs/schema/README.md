@@ -30,3 +30,9 @@ change in the dashboard.
   its text is edited without a new approval, and a one-time backfill
   (`raw_feedback` from `display_feedback` where empty; already-visible
   entries marked approved by `'legacy'`). Run before deploying Phase 3.
+- `0008_change_log_and_dedupe.sql` — `change_log` table filled by a
+  `log_change` trigger on `listings`, `activity_entries`, `listing_sellers`
+  and `platform_views` (before/after JSON, actor from the new
+  `updated_by` column); `activity_entries.source_message_id` /
+  `showingtime_id` with unique indexes; one `platform_views` row per listing
+  per date. Run before deploying Phase 4.
