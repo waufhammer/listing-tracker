@@ -26,6 +26,8 @@ interface ActivityEntry {
   open_house_disclosure_requests: number | null;
   logged_by: string | null;
   created_at: string;
+  voided_at?: string | null;
+  void_reason?: string | null;
 }
 
 type ActivityType = "Buyer Showing" | "Agent Preview" | "Open House";
@@ -402,7 +404,11 @@ function ActivityEntryContent() {
             ) : (
               <div className="divide-y divide-gray-100">
                 {entries.map((entry) => (
-                  <div key={entry.id} className="px-4 sm:px-6 py-3 text-sm hover:bg-gray-50">
+                  <div
+                    key={entry.id}
+                    className={`px-4 sm:px-6 py-3 text-sm hover:bg-gray-50 ${entry.voided_at ? "line-through opacity-50" : ""}`}
+                    title={entry.voided_at ? `Void: ${entry.void_reason ?? "no reason given"}` : undefined}
+                  >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="font-medium text-gray-900 whitespace-nowrap">{entry.type}</span>

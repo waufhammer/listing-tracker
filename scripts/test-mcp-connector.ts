@@ -1,8 +1,9 @@
 // Local end-to-end check of the admin session + MCP connector + client page.
 // Run the server and this script with the same CLIENT_LINK_SECRET, and no
 // CLIENT_LINK_GRACE_UNTIL (old /<slug> links locked):
-//   CLIENT_LINK_SECRET=test-secret-1234567890 PORT=3123 npm run dev
-//   CLIENT_LINK_SECRET=test-secret-1234567890 npx tsx --env-file=.env.local scripts/test-mcp-connector.ts
+//   export CLIENT_LINK_SECRET=test-secret-1234567890 MCP_OAUTH_SECRET=test-oauth-secret-1234567890
+//   PORT=3123 npm run dev
+//   npx tsx --env-file=.env.local scripts/test-mcp-connector.ts
 // Read-only against the database except: one no-op listing edit, and one
 // unmatched "Email me my link" request row. Never rotates a real client link,
 // never emails a seller, and never logs a page view (bots, unknown listings,
@@ -21,14 +22,26 @@ const hasColumn = async (table: string, col: string) => !(await db.from(table).s
 (async () => {
   const schema0005 = await hasColumn("listings", "client_link_token");
   const schema0008 = await hasColumn("activity_entries", "updated_by");
+  const schema0009 = await hasColumn("activity_entries", "voided_at") && await hasColumn("login_attempts", "ip");
+  if (!schema0009) console.log("NOTE docs/schema/0009_activity_fields.sql is not applied; activity reads, weekly email, void and login rate-limit checks will SKIP.");
   if (!schema0008) console.log("NOTE docs/schema/0008_change_log_and_dedupe.sql is not applied; write and change-log checks will SKIP (every write sets updated_by).");
   if (!schema0005) console.log("NOTE docs/schema/0005_client_access.sql is not applied; client-access checks will SKIP.");
   // Admin session
   let r = await fetch(`${B}/admin`, { headers: { cookie: "admin_session=authenticated" }, redirect: "manual" });
   ok(r.status === 307, "old forgeable cookie value no longer gets into admin");
-  r = await fetch(`${B}/api/auth/login`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ password: "wrong" }) });
+  const testIp = `198.51.100.${Math.floor(Math.random() * 250) + 1}`; // TEST-NET-2, never a real client
+  const login = (password: string, ip = testIp) => fetch(`${B}/api/auth/login`, { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": ip }, body: JSON.stringify({ password }) });
+  r = await login("wrong");
   ok(r.status === 401, "wrong password rejected");
-  r = await fetch(`${B}/api/auth/login`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ password: process.env.ADMIN_PASSWORD }) });
+  if (!schema0009) skip("login rate limit", "needs 0009");
+  else {
+    for (let i = 0; i < 4; i++) await login("wrong");
+    r = await login(process.env.ADMIN_PASSWORD!);
+    ok(r.status === 429, "after 5 failed tries from one IP, even the right password waits 15 minutes");
+    r = await login("wrong", `198.51.100.${(Number(testIp.split(".")[3]) % 250) + 1}`);
+    ok(r.status === 401, "other IPs are not affected");
+  }
+  r = await login(process.env.ADMIN_PASSWORD!, `203.0.113.${Math.floor(Math.random() * 250) + 1}`);
   const setCookie = r.headers.get("set-cookie") ?? "";
   const cookie = setCookie.split(";")[0];
   ok(r.status === 200 && !cookie.endsWith("=authenticated"), "login sets signed cookie");
@@ -87,6 +100,16 @@ const hasColumn = async (table: string, col: string) => !(await db.from(table).s
   ok(!tools.some((n: string) => /delete/.test(n)), "no delete tools");
   m = await mcp(t.access_token.slice(0, -2) + "xx", "tools/list");
   ok(m.status === 401, "tampered token rejected");
+  const forge = (key: string) => {
+    const body = b64u(Buffer.from(JSON.stringify({ t: "access", cid: reg.client_id, res: `${B}/api/mcp`, exp: Math.floor(Date.now() / 1000) + 600 })));
+    return `${body}.${createHmac("sha256", key).update(body).digest("base64url")}`;
+  };
+  m = await mcp(forge(`mcp-oauth:${process.env.ADMIN_PASSWORD}`), "tools/list");
+  ok(m.status === 401, "token signed with the old ADMIN_PASSWORD-derived key is rejected");
+  if (process.env.MCP_OAUTH_SECRET) {
+    m = await mcp(forge(`mcp-oauth:${process.env.MCP_OAUTH_SECRET}`), "tools/list");
+    ok(m.status === 200, "tokens are signed with MCP_OAUTH_SECRET");
+  } else skip("MCP_OAUTH_SECRET signing", "MCP_OAUTH_SECRET not set for the test");
 
   let c = await call("list_listings", { status: "active" });
   const active = c.data.listings ?? [];
@@ -103,12 +126,12 @@ const hasColumn = async (table: string, col: string) => !(await db.from(table).s
   const thorndyke = active.find((l: { property_address: string }) => /^1537 Thorndyke/.test(l.property_address));
   ok(!!thorndyke?.id, "active 1537 Thorndyke found by list_listings");
   c = await call("get_activity", { listing: thorndyke.id, from: "2026-10-26", to: "2026-11-01" });
-  ok(Array.isArray(c.data.entries) && c.data.entries.length > 0, `get_activity by id (${c.data.entries?.length} entries)`);
+  if (!schema0009) skip("get_activity", "needs 0009"); else ok(Array.isArray(c.data.entries) && c.data.entries.length > 0, `get_activity by id (${c.data.entries?.length} entries)`);
   c = await call("get_weekly_checklist", { send_date: "2026-11-02" });
   ok(Array.isArray(c.data.listings), "get_weekly_checklist");
   console.log("  checklist:", JSON.stringify(c.data.listings.map((l: Record<string, unknown[]>) => ({ a: l.property_address, noFb: l.showings_without_feedback.length, hidden: l.feedback_not_client_visible.length, sellers: l.seller_problems }))));
   c = await call("get_weekly_emails", { send_date: "2026-11-02" });
-  if (!schema0005) skip("weekly emails", "needs 0005"); else ok(c.data.emails?.length >= 1 && c.data.emails.every((e: { to: string[]; cc: string[] }) => e.to.join() === "will.aufhammer@compass.com" && e.cc.length === 0), "weekly emails default to test mode (Will only)");
+  if (!schema0005 || !schema0009) skip("weekly emails", "needs 0005 + 0009"); else ok(c.data.emails?.length >= 1 && c.data.emails.every((e: { to: string[]; cc: string[] }) => e.to.join() === "will.aufhammer@compass.com" && e.cc.length === 0), "weekly emails default to test mode (Will only)");
   c = await call("add_seller", { listing: "Thorndyke", confirmed: true, first_name: "Test" });
   ok(c.isError && /listing_id/.test(c.data.error), "write tools reject an address (listing_id required)");
   c = await call("add_seller", { listing_id: "00000000-0000-4000-8000-000000000000", confirmed: true, first_name: "Test" });
@@ -139,6 +162,26 @@ const hasColumn = async (table: string, col: string) => !(await db.from(table).s
     ok(!c.isError && Array.isArray(c.data.changes) && !/[0-9a-f]{64}/.test(JSON.stringify(c.data)), "get_change_log works and never shows the client link token");
   }
 
+  // Phase 5: future dates refused, void tool, clearing fields, checklist gaps.
+  const tomorrow = new Date(Date.now() + 36 * 3600 * 1000).toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
+  c = await call("add_activity", { listing_id: thorndyke.id, confirmed: true, type: "agent_preview", date: tomorrow, agent_name: "Test" });
+  ok(c.isError && /in the future/.test(c.data.error), "add_activity refuses a future date (nothing saved)");
+  c = await call("add_platform_views", { listing_id: thorndyke.id, confirmed: true, date: tomorrow, zillow_views: 1 });
+  ok(c.isError && /in the future/.test(c.data.error), "add_platform_views refuses a future date (nothing saved)");
+  c = await call("void_activity", { id: "00000000-0000-4000-8000-000000000000", reason: "test", confirmed: false });
+  ok(c.isError && /Not saved/.test(c.data.error), "void_activity needs confirmation");
+  c = await call("update_seller", { id: "00000000-0000-4000-8000-000000000000", confirmed: true, email: null });
+  ok(c.isError && /No seller with that id/.test(c.data.error), "update tools accept null to clear a field");
+  if (!schema0009) skip("void + checklist gaps", "needs 0009");
+  else {
+    c = await call("void_activity", { id: "00000000-0000-4000-8000-000000000000", reason: "test", confirmed: true });
+    ok(c.isError && /No activity entry/.test(c.data.error), "void_activity with an unknown id saves nothing");
+    c = await call("get_weekly_checklist", {});
+    ok((c.data.listings ?? []).every((l: Record<string, unknown>) => Array.isArray(l.open_feedback_gaps_all_time)), "checklist has open_feedback_gaps_all_time per listing");
+    const ent = (await call("get_activity", { listing: thorndyke.id })).data.entries?.[0] ?? {};
+    ok("voided_at" in ent && "agent_email" in ent && "nudge_count" in ent, "get_activity returns the new fields");
+  }
+
   // Phase 3: client-facing text needs the agent's original words; guidance in descriptions.
   c = await call("add_activity", { listing_id: thorndyke.id, confirmed: true, type: "buyer_showing", date: "2026-11-01", display_feedback: "Liked the kitchen." });
   ok(c.isError && /raw_feedback/.test(c.data.error), "display_feedback without raw_feedback is refused (nothing saved)");
@@ -146,6 +189,8 @@ const hasColumn = async (table: string, col: string) => !(await db.from(table).s
   const toolDefs = (m.body?.result?.tools ?? []) as { name: string; inputSchema: { properties: Record<string, { description?: string }> } }[];
   const props = (n: string) => toolDefs.find((x) => x.name === n)?.inputSchema.properties ?? {};
   ok(/No buyer names, family status, age/.test(props("add_activity").display_feedback?.description ?? "") && /No buyer names/.test(props("update_activity").display_feedback?.description ?? ""), "display_feedback describes what must stay out of client text");
+  ok(/Showings and previews only/.test(props("add_activity").buyer_packet_requested?.description ?? "") && /Open houses only/.test(props("add_activity").open_house_disclosure_requests?.description ?? ""), "descriptions say which activity types the disclosure fields are for");
+  ok(toolDefs.some((x) => x.name === "void_activity") && !toolDefs.some((x) => /delete/.test(x.name)), "void_activity exists; still no delete tools");
   ok(/Only after Will has approved the exact client-facing text/.test(props("update_activity").feedback_visible?.description ?? ""), "feedback_visible requires approval of the exact text");
   const writeTools = (m.body?.result?.tools ?? []).filter((x: { inputSchema: { properties: Record<string, unknown> } }) => "confirmed" in (x.inputSchema?.properties ?? {}));
   ok(writeTools.length >= 6 && writeTools.every((x: { inputSchema: { properties: { confirmed: { description: string } } } }) => /Never reuse an earlier OK/.test(x.inputSchema.properties.confirmed.description)), `confirmed is strict on every write tool (${writeTools.length})`);
@@ -184,7 +229,7 @@ const hasColumn = async (table: string, col: string) => !(await db.from(table).s
       r = await fetch(`${B}/${l.slug}`, { headers: { cookie: cl! } });
       page = await r.text();
       ok(r.status === 200 && page.includes("Activity and Feedback"), `/${l.slug} with only the cookie shows the dashboard`);
-      ok(!/raw_feedback|follow_up_sent|logged_by|listing_notes|client_link_token/.test(page) && !page.includes(row!.client_link_token), `client page ${l.slug} has no private field names or token`);
+      ok(!/raw_feedback|follow_up_sent|logged_by|listing_notes|client_link_token|agent_email|agent_phone|agent_brokerage|void_reason/.test(page) && !page.includes(row!.client_link_token), `client page ${l.slug} has no private field names or token`);
       const act = await call("get_activity", { listing: l.id });
       const entries = (act.data.entries ?? []) as { raw_feedback: string | null; display_feedback: string | null; feedback_visible: boolean }[];
       const shown = entries.filter((e) => e.feedback_visible && e.display_feedback).map((e) => e.display_feedback!);
@@ -214,7 +259,7 @@ const hasColumn = async (table: string, col: string) => !(await db.from(table).s
     c = await call("get_listing", { listing: active[0].id });
     ok(c.data.listing?.client_link_active === true && !JSON.stringify(c.data).match(/[0-9a-f]{64}/), "get_listing says client_link_active and never returns the token");
     c = await call("get_weekly_emails", { listing: active[0].id, send_date: "2026-11-02" });
-    ok(/\/s\/[0-9a-f]{64}/.test(c.data.emails?.[0]?.text ?? ""), "weekly email links to the private /s/<token> link");
+    if (!schema0009) skip("weekly email link", "needs 0005 + 0009"); else ok(/\/s\/[0-9a-f]{64}/.test(c.data.emails?.[0]?.text ?? ""), "weekly email links to the private /s/<token> link");
   }
 
   // Page view logging

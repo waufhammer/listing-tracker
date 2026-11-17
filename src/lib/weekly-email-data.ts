@@ -16,7 +16,7 @@ export async function loadWeeklyEmail(
   const [listingRes, sellersRes, entriesRes] = await Promise.all([
     supabaseAdmin.from("listings").select(LISTING_FIELDS).eq("id", listingId).maybeSingle(),
     supabaseAdmin.from("listing_sellers").select("first_name, last_name, email, sort_order").eq("listing_id", listingId),
-    supabaseAdmin.from("activity_entries").select(ENTRY_FIELDS).eq("listing_id", listingId),
+    supabaseAdmin.from("activity_entries").select(ENTRY_FIELDS).eq("listing_id", listingId).is("voided_at", null),
   ]);
   const err = listingRes.error ?? sellersRes.error ?? entriesRes.error;
   if (err) return { email: null, error: err.message };

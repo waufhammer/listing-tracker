@@ -113,6 +113,7 @@ export default async function ClientDashboardPage({
       // toClientEntry drops it with every other non-client field.
       .select(`${CLIENT_ACTIVITY_FIELDS}, created_at`)
       .eq("listing_id", listing.id)
+      .is("voided_at", null)
       .order("date", { ascending: false }),
     supabaseAdmin
       .from("platform_views")
