@@ -5,16 +5,23 @@ import { cookies } from "next/headers";
 import { supabaseAdmin } from "./supabase";
 import { ADMIN_COOKIE, isValidAdminSession } from "./admin-session";
 import { formatChangeLog } from "./change-log";
+import { ADMIN_ACTOR_COOKIE, toAdminActor } from "./admin-actor";
 
-/** Who changed a tracked row (read by the 0008 change_log trigger). */
-function byWill() {
-  return { updated_by: "will", updated_at: new Date().toISOString() };
+/** The admin profile making this change ('will' unless the Assistant
+ *  profile is selected in the sidebar). */
+async function adminActor() {
+  return toAdminActor((await cookies()).get(ADMIN_ACTOR_COOKIE)?.value);
 }
 
-/** Admin deletes: stamp the row first so change_log records Will, not the
+/** Who changed a tracked row (read by the 0008 change_log trigger). */
+async function byAdmin() {
+  return { updated_by: await adminActor(), updated_at: new Date().toISOString() };
+}
+
+/** Admin deletes: stamp the row first so change_log records the admin, not the
  *  last editor, as the actor of the delete. */
 async function stampedDelete(table: "listings" | "activity_entries" | "platform_views" | "listing_sellers", id: string) {
-  await supabaseAdmin.from(table).update(byWill()).eq("id", id);
+  await supabaseAdmin.from(table).update(await byAdmin()).eq("id", id);
   return supabaseAdmin.from(table).delete().eq("id", id);
 }
 
@@ -68,7 +75,7 @@ export async function createListing(
   await requireAdmin();
   const { error } = await supabaseAdmin
     .from("listings")
-    .insert({ ...listingData, client_link_token: newClientLinkToken(), ...byWill() });
+    .insert({ ...listingData, client_link_token: newClientLinkToken(), ...(await byAdmin()) });
   return { error: error?.message ?? null };
 }
 
@@ -100,7 +107,7 @@ export async function rotateClientLink(id: string) {
   const { error } = await supabaseAdmin
     .from("listings")
     .update({
-      ...byWill(),
+      ...(await byAdmin()),
       client_link_token: newClientLinkToken(),
       client_link_version: (cur.client_link_version ?? 1) + 1,
       client_link_rotated_at: new Date().toISOString(),
@@ -131,7 +138,7 @@ export async function updateListing(
   await requireAdmin();
   const { error } = await supabaseAdmin
     .from("listings")
-    .update({ ...updateData, ...byWill() })
+    .update({ ...updateData, ...(await byAdmin()) })
     .eq("id", id);
   return { error: error?.message ?? null };
 }
@@ -248,11 +255,11 @@ export async function createActivityEntry(
   // Will saving it visible is the approval.
   if (row.feedback_visible === true) {
     row.feedback_approved_at = new Date().toISOString();
-    row.feedback_approved_by = "will";
+    row.feedback_approved_by = await adminActor();
   }
   const { error } = await supabaseAdmin
     .from("activity_entries")
-    .insert({ ...row, ...byWill() });
+    .insert({ ...row, ...(await byAdmin()) });
   return { error: error?.message ?? null };
 }
 
@@ -274,12 +281,12 @@ export async function updateActivityEntry(
     const textChanged = "display_feedback" in row && (row.display_feedback ?? null) !== (before?.display_feedback ?? null);
     if (row.feedback_visible === true && (!before?.feedback_visible || textChanged)) {
       row.feedback_approved_at = new Date().toISOString();
-      row.feedback_approved_by = "will";
+      row.feedback_approved_by = await adminActor();
     }
   }
   const { error } = await supabaseAdmin
     .from("activity_entries")
-    .update({ ...row, ...byWill() })
+    .update({ ...row, ...(await byAdmin()) })
     .eq("id", id);
   return { error: error?.message ?? null };
 }
@@ -302,7 +309,7 @@ export async function approveLegacyFeedback(id: string) {
   await requireAdmin();
   const { error } = await supabaseAdmin
     .from("activity_entries")
-    .update({ ...byWill(), feedback_approved_by: "will", feedback_approved_at: new Date().toISOString() })
+    .update({ ...(await byAdmin()), feedback_approved_by: await adminActor(), feedback_approved_at: new Date().toISOString() })
     .eq("id", id)
     .eq("feedback_approved_by", "legacy");
   return { error: error?.message ?? null };
@@ -313,7 +320,7 @@ export async function hideFeedback(id: string) {
   await requireAdmin();
   const { error } = await supabaseAdmin
     .from("activity_entries")
-    .update({ ...byWill(), feedback_visible: false })
+    .update({ ...(await byAdmin()), feedback_visible: false })
     .eq("id", id);
   return { error: error?.message ?? null };
 }
@@ -342,7 +349,7 @@ export async function createPlatformView(
   await requireAdmin();
   const { error } = await supabaseAdmin
     .from("platform_views")
-    .insert({ ...entry, ...byWill() });
+    .insert({ ...entry, ...(await byAdmin()) });
   if (error?.code === "23505") return { error: "There is already an online views snapshot for that date. Edit it instead." };
   return { error: error?.message ?? null };
 }
@@ -354,7 +361,7 @@ export async function updatePlatformView(
   await requireAdmin();
   const { error } = await supabaseAdmin
     .from("platform_views")
-    .update({ ...updates, ...byWill() })
+    .update({ ...updates, ...(await byAdmin()) })
     .eq("id", id);
   return { error: error?.message ?? null };
 }
@@ -476,13 +483,13 @@ export async function createSeller(seller: {
   sort_order?: number;
 }) {
   await requireAdmin();
-  const { error } = await supabaseAdmin.from("listing_sellers").insert({ ...seller, ...byWill() });
+  const { error } = await supabaseAdmin.from("listing_sellers").insert({ ...seller, ...(await byAdmin()) });
   return { error: error?.message ?? null };
 }
 
 export async function updateSeller(id: string, updates: Record<string, unknown>) {
   await requireAdmin();
-  const { error } = await supabaseAdmin.from("listing_sellers").update({ ...updates, ...byWill() }).eq("id", id);
+  const { error } = await supabaseAdmin.from("listing_sellers").update({ ...updates, ...(await byAdmin()) }).eq("id", id);
   return { error: error?.message ?? null };
 }
 
