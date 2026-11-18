@@ -179,6 +179,7 @@ const hasColumn = async (table: string, col: string) => !(await db.from(table).s
     }
     c = await call("get_listing", { listing: active[0].id });
     ok(c.data.listing?.client_link_active === true && !JSON.stringify(c.data).match(/[0-9a-f]{64}/), "get_listing says client_link_active and never returns the token");
+    ok(!("client_link" in (c.data.listing ?? {})) && /\/[a-z0-9-]+$/.test(c.data.listing?.page_address_internal ?? ""), "get_listing returns page_address_internal, not a seller-facing client_link");
     c = await call("get_weekly_emails", { listing: active[0].id, send_date: "2026-11-02" });
     ok(/\/s\/[0-9a-f]{64}/.test(c.data.emails?.[0]?.text ?? ""), "weekly email links to the private /s/<token> link");
   }
