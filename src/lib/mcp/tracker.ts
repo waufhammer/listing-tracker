@@ -26,9 +26,10 @@ function listingSummary(l: Row) {
     ...l,
     dom,
     cdom: isRelisted(listing) ? cumulativeDaysOnMarket(listing) : null,
-    client_link: `${CLIENT_BASE_URL}/${l.slug}`,
-    // Sellers open the page with a private /s/<token> link (in the weekly
-    // emails); the token itself is never returned here.
+    // The readable address works only for Will (logged into admin) or a device
+    // already signed in. Sellers need their private /s/<token> link, which is
+    // only in the weekly emails; the token is never returned here.
+    page_address_internal: `${CLIENT_BASE_URL}/${l.slug}`,
     client_link_active: true,
   };
 }

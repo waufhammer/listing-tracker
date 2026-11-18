@@ -56,7 +56,7 @@ const handler = createMcpHandler(
       "list_listings",
       {
         title: "List listings",
-        description: "All listings (or one status), with DOM, CDOM (after a cancel and relist), First Look flag, and client link.",
+        description: "All listings (or one status), with DOM, CDOM (after a cancel and relist), and First Look flag. page_address_internal is for Will only: never send it to a seller (it shows them a sign-in form). Sellers' private links are only in the weekly emails.",
         inputSchema: z.object({ status: z.enum(LISTING_STATUSES).optional() }),
         annotations: readOnly,
       },
@@ -67,7 +67,7 @@ const handler = createMcpHandler(
       "get_listing",
       {
         title: "Get listing",
-        description: "One listing: details, sellers, activity totals, gaps in feedback, latest online views, and when the client link was last opened.",
+        description: "One listing: details, sellers, activity totals, gaps in feedback, latest online views, and when the seller page was last opened. page_address_internal is for Will only: never send it to a seller.",
         inputSchema: z.object({ listing: listingRef }),
         annotations: readOnly,
       },
