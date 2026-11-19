@@ -37,6 +37,9 @@ export interface EmailListing {
   sold_date?: string | null;
   first_look: boolean;
   prior_days_on_market?: number | null;
+  /** Private seller link token (0005_client_access.sql). The email links to
+   *  /s/<token>; the readable /<slug> link is only a fallback for fixtures. */
+  client_link_token?: string | null;
 }
 
 export interface EmailSeller {
@@ -201,7 +204,9 @@ export function buildWeeklyEmail(opts: {
     domLine = isRelisted(listing) ? `DOM: ${dom} | CDOM: ${cdom}` : `DOM: ${dom}`;
   }
 
-  const clientUrl = `${CLIENT_BASE_URL}/${listing.slug}`;
+  const clientUrl = listing.client_link_token
+    ? `${CLIENT_BASE_URL}/s/${listing.client_link_token}`
+    : `${CLIENT_BASE_URL}/${listing.slug}`;
   const subject = `${listing.property_address}: weekly update, ${monthDay(sendDate)}`;
 
   // ── HTML ───────────────────────────────────────────────────────────────

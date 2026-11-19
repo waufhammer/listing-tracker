@@ -1,5 +1,6 @@
 "use server";
 
+import { randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { supabaseAdmin } from "./supabase";
 import { ADMIN_COOKIE, isValidAdminSession } from "./admin-session";
@@ -52,8 +53,61 @@ export async function createListing(
   listingData: Record<string, unknown>
 ) {
   await requireAdmin();
-  const { error } = await supabaseAdmin.from("listings").insert(listingData);
+  const { error } = await supabaseAdmin
+    .from("listings")
+    .insert({ ...listingData, client_link_token: newClientLinkToken() });
   return { error: error?.message ?? null };
+}
+
+/** 64 hex characters, the same shape as the 0005 backfill. */
+function newClientLinkToken() {
+  return randomBytes(32).toString("hex");
+}
+
+/** The listing's private seller link (admin only). */
+export async function getClientLink(id: string) {
+  await requireAdmin();
+  const { data, error } = await supabaseAdmin
+    .from("listings")
+    .select("client_link_token, client_link_version, client_link_rotated_at")
+    .eq("id", id)
+    .maybeSingle();
+  return { data, error: error?.message ?? null };
+}
+
+/** New token and version + 1: the old link and every cookie it set stop working. */
+export async function rotateClientLink(id: string) {
+  await requireAdmin();
+  const { data: cur, error: readError } = await supabaseAdmin
+    .from("listings")
+    .select("client_link_version")
+    .eq("id", id)
+    .maybeSingle();
+  if (readError || !cur) return { error: readError?.message ?? "Listing not found" };
+  const { error } = await supabaseAdmin
+    .from("listings")
+    .update({
+      client_link_token: newClientLinkToken(),
+      client_link_version: (cur.client_link_version ?? 1) + 1,
+      client_link_rotated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+  return { error: error?.message ?? null };
+}
+
+/** "Email me my link" requests from sellers that were not emailed (no
+ *  RESEND_API_KEY, send failed, or hourly limit), last 14 days. */
+export async function getUnsentClientLinkRequests() {
+  await requireAdmin();
+  const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabaseAdmin
+    .from("client_link_requests")
+    .select("id, email, created_at, listing_id, listings(property_address, client_link_token)")
+    .eq("matched", true)
+    .eq("sent", false)
+    .gte("created_at", since)
+    .order("created_at", { ascending: false });
+  return { data: data ?? [], error: error?.message ?? null };
 }
 
 export async function updateListing(
@@ -70,6 +124,13 @@ export async function updateListing(
 
 export async function deleteListing(id: string) {
   await requireAdmin();
+  // client_link_requests.listing_id (0005) has no ON DELETE CASCADE, so
+  // detach those rows first (kept, listing_id cleared) or the delete fails.
+  const { error: detachError } = await supabaseAdmin
+    .from("client_link_requests")
+    .update({ listing_id: null })
+    .eq("listing_id", id);
+  if (detachError) return { error: detachError.message };
   const { error } = await supabaseAdmin
     .from("listings")
     .delete()
@@ -373,7 +434,7 @@ export async function getPageViewLog(listingId: string, limit = 50) {
   await requireAdmin();
   const { data, error } = await supabaseAdmin
     .from("page_views")
-    .select("id, viewed_at, user_agent")
+    .select("id, viewed_at, user_agent, via")
     .eq("listing_id", listingId)
     .order("viewed_at", { ascending: false })
     .limit(limit);
