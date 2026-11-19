@@ -6,7 +6,7 @@ import { buildWeeklyEmail, type EmailListing, type WeeklyEmail } from "./weekly-
 const ENTRY_FIELDS =
   "date, type, agent_name, buyer_packet_requested, display_feedback, feedback_visible, open_house_groups, open_house_disclosure_requests";
 const LISTING_FIELDS =
-  "id, slug, property_address, status, list_date, pending_date, sold_date, first_look, prior_days_on_market";
+  "id, slug, property_address, status, list_date, pending_date, sold_date, first_look, prior_days_on_market, client_link_token";
 
 export async function loadWeeklyEmail(
   listingId: string,
@@ -16,7 +16,7 @@ export async function loadWeeklyEmail(
   const [listingRes, sellersRes, entriesRes] = await Promise.all([
     supabaseAdmin.from("listings").select(LISTING_FIELDS).eq("id", listingId).maybeSingle(),
     supabaseAdmin.from("listing_sellers").select("first_name, last_name, email, sort_order").eq("listing_id", listingId),
-    supabaseAdmin.from("activity_entries").select(ENTRY_FIELDS).eq("listing_id", listingId),
+    supabaseAdmin.from("activity_entries").select(ENTRY_FIELDS).eq("listing_id", listingId).is("voided_at", null),
   ]);
   const err = listingRes.error ?? sellersRes.error ?? entriesRes.error;
   if (err) return { email: null, error: err.message };

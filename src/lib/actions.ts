@@ -1,8 +1,30 @@
 "use server";
 
+import { randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { supabaseAdmin } from "./supabase";
 import { ADMIN_COOKIE, isValidAdminSession } from "./admin-session";
+import { formatChangeLog } from "./change-log";
+import { futureDateError, stampActivityTimes } from "./activity-rules";
+import { ADMIN_ACTOR_COOKIE, toAdminActor } from "./admin-actor";
+
+/** The admin profile making this change ('will' unless the Assistant
+ *  profile is selected in the sidebar). */
+async function adminActor() {
+  return toAdminActor((await cookies()).get(ADMIN_ACTOR_COOKIE)?.value);
+}
+
+/** Who changed a tracked row (read by the 0008 change_log trigger). */
+async function byAdmin() {
+  return { updated_by: await adminActor(), updated_at: new Date().toISOString() };
+}
+
+/** Admin deletes: stamp the row first so change_log records the admin, not the
+ *  last editor, as the actor of the delete. */
+async function stampedDelete(table: "listings" | "activity_entries" | "platform_views" | "listing_sellers", id: string) {
+  await supabaseAdmin.from(table).update(await byAdmin()).eq("id", id);
+  return supabaseAdmin.from(table).delete().eq("id", id);
+}
 
 async function requireAdmin() {
   const cookieStore = await cookies();
@@ -52,8 +74,62 @@ export async function createListing(
   listingData: Record<string, unknown>
 ) {
   await requireAdmin();
-  const { error } = await supabaseAdmin.from("listings").insert(listingData);
+  const { error } = await supabaseAdmin
+    .from("listings")
+    .insert({ ...listingData, client_link_token: newClientLinkToken(), ...(await byAdmin()) });
   return { error: error?.message ?? null };
+}
+
+/** 64 hex characters, the same shape as the 0005 backfill. */
+function newClientLinkToken() {
+  return randomBytes(32).toString("hex");
+}
+
+/** The listing's private seller link (admin only). */
+export async function getClientLink(id: string) {
+  await requireAdmin();
+  const { data, error } = await supabaseAdmin
+    .from("listings")
+    .select("client_link_token, client_link_version, client_link_rotated_at")
+    .eq("id", id)
+    .maybeSingle();
+  return { data, error: error?.message ?? null };
+}
+
+/** New token and version + 1: the old link and every cookie it set stop working. */
+export async function rotateClientLink(id: string) {
+  await requireAdmin();
+  const { data: cur, error: readError } = await supabaseAdmin
+    .from("listings")
+    .select("client_link_version")
+    .eq("id", id)
+    .maybeSingle();
+  if (readError || !cur) return { error: readError?.message ?? "Listing not found" };
+  const { error } = await supabaseAdmin
+    .from("listings")
+    .update({
+      ...(await byAdmin()),
+      client_link_token: newClientLinkToken(),
+      client_link_version: (cur.client_link_version ?? 1) + 1,
+      client_link_rotated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+  return { error: error?.message ?? null };
+}
+
+/** "Email me my link" requests from sellers that were not emailed (no
+ *  RESEND_API_KEY, send failed, or hourly limit), last 14 days. */
+export async function getUnsentClientLinkRequests() {
+  await requireAdmin();
+  const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabaseAdmin
+    .from("client_link_requests")
+    .select("id, email, created_at, listing_id, listings(property_address, client_link_token)")
+    .eq("matched", true)
+    .eq("sent", false)
+    .gte("created_at", since)
+    .order("created_at", { ascending: false });
+  return { data: data ?? [], error: error?.message ?? null };
 }
 
 export async function updateListing(
@@ -63,17 +139,21 @@ export async function updateListing(
   await requireAdmin();
   const { error } = await supabaseAdmin
     .from("listings")
-    .update(updateData)
+    .update({ ...updateData, ...(await byAdmin()) })
     .eq("id", id);
   return { error: error?.message ?? null };
 }
 
 export async function deleteListing(id: string) {
   await requireAdmin();
-  const { error } = await supabaseAdmin
-    .from("listings")
-    .delete()
-    .eq("id", id);
+  // client_link_requests.listing_id (0005) has no ON DELETE CASCADE, so
+  // detach those rows first (kept, listing_id cleared) or the delete fails.
+  const { error: detachError } = await supabaseAdmin
+    .from("client_link_requests")
+    .update({ listing_id: null })
+    .eq("listing_id", id);
+  if (detachError) return { error: detachError.message };
+  const { error } = await stampedDelete("listings", id);
   return { error: error?.message ?? null };
 }
 
@@ -116,6 +196,7 @@ export async function getShowingCounts(listingIds: string[]) {
         .from("activity_entries")
         .select("id", { count: "exact", head: true })
         .eq("listing_id", listingId)
+        .is("voided_at", null)
         .in("type", ["buyer_showing", "agent_preview"]);
       if (!error && count !== null) {
         counts[listingId] = count;
@@ -170,9 +251,19 @@ export async function createActivityEntry(
   entry: Record<string, unknown>
 ) {
   await requireAdmin();
+  const future = futureDateError(entry.date);
+  if (future) return { error: future };
+  const row = stampActivityTimes({ ...entry });
+  // raw_feedback keeps the original words; admin forms only have one box.
+  if (row.display_feedback && !row.raw_feedback) row.raw_feedback = row.display_feedback;
+  // Will saving it visible is the approval.
+  if (row.feedback_visible === true) {
+    row.feedback_approved_at = new Date().toISOString();
+    row.feedback_approved_by = await adminActor();
+  }
   const { error } = await supabaseAdmin
     .from("activity_entries")
-    .insert(entry);
+    .insert({ ...row, ...(await byAdmin()) });
   return { error: error?.message ?? null };
 }
 
@@ -181,19 +272,69 @@ export async function updateActivityEntry(
   updates: Record<string, unknown>
 ) {
   await requireAdmin();
+  const future = futureDateError(updates.date);
+  if (future) return { error: future };
+  const row = { ...updates };
+  const { data: before } = await supabaseAdmin
+    .from("activity_entries")
+    .select("display_feedback, raw_feedback, feedback_visible, follow_up_sent_at, feedback_received_at")
+    .eq("id", id)
+    .maybeSingle();
+  stampActivityTimes(row, before);
+  if ("display_feedback" in row || "feedback_visible" in row) {
+    if (row.display_feedback && !row.raw_feedback && !before?.raw_feedback) row.raw_feedback = row.display_feedback;
+    // Will ticking visible, or saving new text while it's visible, is the
+    // approval (otherwise the 0007 trigger hides edited text again).
+    const textChanged = "display_feedback" in row && (row.display_feedback ?? null) !== (before?.display_feedback ?? null);
+    if (row.feedback_visible === true && (!before?.feedback_visible || textChanged)) {
+      row.feedback_approved_at = new Date().toISOString();
+      row.feedback_approved_by = await adminActor();
+    }
+  }
   const { error } = await supabaseAdmin
     .from("activity_entries")
-    .update(updates)
+    .update({ ...row, ...(await byAdmin()) })
+    .eq("id", id);
+  return { error: error?.message ?? null };
+}
+
+/** Feedback that was already visible before approvals existed (0007
+ *  backfill marks it 'legacy'), for Will to re-read once. */
+export async function getLegacyVisibleFeedback() {
+  await requireAdmin();
+  const { data, error } = await supabaseAdmin
+    .from("activity_entries")
+    .select("id, date, type, agent_name, display_feedback, raw_feedback, listing_id, listings(property_address)")
+    .eq("feedback_approved_by", "legacy")
+    .eq("feedback_visible", true)
+    .order("date", { ascending: false });
+  return { data: data ?? [], error: error?.message ?? null };
+}
+
+/** "Looks good": Will has re-read it. */
+export async function approveLegacyFeedback(id: string) {
+  await requireAdmin();
+  const { error } = await supabaseAdmin
+    .from("activity_entries")
+    .update({ ...(await byAdmin()), feedback_approved_by: await adminActor(), feedback_approved_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("feedback_approved_by", "legacy");
+  return { error: error?.message ?? null };
+}
+
+/** "Hide": take it off the client page and weekly email. Text is kept. */
+export async function hideFeedback(id: string) {
+  await requireAdmin();
+  const { error } = await supabaseAdmin
+    .from("activity_entries")
+    .update({ ...(await byAdmin()), feedback_visible: false })
     .eq("id", id);
   return { error: error?.message ?? null };
 }
 
 export async function deleteActivityEntry(id: string) {
   await requireAdmin();
-  const { error } = await supabaseAdmin
-    .from("activity_entries")
-    .delete()
-    .eq("id", id);
+  const { error } = await stampedDelete("activity_entries", id);
   return { error: error?.message ?? null };
 }
 
@@ -213,9 +354,12 @@ export async function createPlatformView(
   entry: Record<string, unknown>
 ) {
   await requireAdmin();
+  const future = futureDateError(entry.date);
+  if (future) return { error: future };
   const { error } = await supabaseAdmin
     .from("platform_views")
-    .insert(entry);
+    .insert({ ...entry, ...(await byAdmin()) });
+  if (error?.code === "23505") return { error: "There is already an online views snapshot for that date. Edit it instead." };
   return { error: error?.message ?? null };
 }
 
@@ -226,17 +370,14 @@ export async function updatePlatformView(
   await requireAdmin();
   const { error } = await supabaseAdmin
     .from("platform_views")
-    .update(updates)
+    .update({ ...updates, ...(await byAdmin()) })
     .eq("id", id);
   return { error: error?.message ?? null };
 }
 
 export async function deletePlatformView(id: string) {
   await requireAdmin();
-  const { error } = await supabaseAdmin
-    .from("platform_views")
-    .delete()
-    .eq("id", id);
+  const { error } = await stampedDelete("platform_views", id);
   return { error: error?.message ?? null };
 }
 
@@ -351,19 +492,19 @@ export async function createSeller(seller: {
   sort_order?: number;
 }) {
   await requireAdmin();
-  const { error } = await supabaseAdmin.from("listing_sellers").insert(seller);
+  const { error } = await supabaseAdmin.from("listing_sellers").insert({ ...seller, ...(await byAdmin()) });
   return { error: error?.message ?? null };
 }
 
 export async function updateSeller(id: string, updates: Record<string, unknown>) {
   await requireAdmin();
-  const { error } = await supabaseAdmin.from("listing_sellers").update(updates).eq("id", id);
+  const { error } = await supabaseAdmin.from("listing_sellers").update({ ...updates, ...(await byAdmin()) }).eq("id", id);
   return { error: error?.message ?? null };
 }
 
 export async function deleteSeller(id: string) {
   await requireAdmin();
-  const { error } = await supabaseAdmin.from("listing_sellers").delete().eq("id", id);
+  const { error } = await stampedDelete("listing_sellers", id);
   return { error: error?.message ?? null };
 }
 
@@ -373,7 +514,7 @@ export async function getPageViewLog(listingId: string, limit = 50) {
   await requireAdmin();
   const { data, error } = await supabaseAdmin
     .from("page_views")
-    .select("id, viewed_at, user_agent")
+    .select("id, viewed_at, user_agent, via")
     .eq("listing_id", listingId)
     .order("viewed_at", { ascending: false })
     .limit(limit);
@@ -386,4 +527,20 @@ export async function getWeeklyEmailPreview(listingId: string, sendDate: string)
   await requireAdmin();
   const { loadWeeklyEmail } = await import("./weekly-email-data");
   return loadWeeklyEmail(listingId, sendDate, { testMode: true });
+}
+
+// ── Change history (0008) ──────────────────────────────────────────────────
+
+export async function getChangeLogForListing(listingId: string, limit = 200) {
+  await requireAdmin();
+  const { data, error } = await supabaseAdmin
+    .from("change_log")
+    .select("at, actor, action, table_name, row_id, before, after")
+    .eq("listing_id", listingId)
+    .order("at", { ascending: false })
+    .limit(limit);
+  const rows = formatChangeLog((data ?? []) as Record<string, unknown>[]).filter(
+    (x) => !("changed" in x) || Object.keys(x.changed).length > 0
+  );
+  return { data: rows, error: error?.message ?? null };
 }

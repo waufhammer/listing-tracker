@@ -5,7 +5,7 @@
 
 export const ADMIN_COOKIE = "admin_session";
 
-async function hmac(key: string, message: string): Promise<string> {
+export async function hmac(key: string, message: string): Promise<string> {
   const enc = new TextEncoder();
   const k = await crypto.subtle.importKey("raw", enc.encode(key), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const sig = new Uint8Array(await crypto.subtle.sign("HMAC", k, enc.encode(message)));

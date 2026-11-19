@@ -6,6 +6,8 @@ import ActivitySummaryChart from "@/components/ActivitySummaryChart";
 import ActivityLog from "@/components/ActivityLog";
 import CumulativeActivityChart from "@/components/CumulativeActivityChart";
 import PageViewTracker from "@/components/PageViewTracker";
+import GetYourLink from "@/components/GetYourLink";
+import { CONTACT_EMAIL, contactPhone, hasClientAccess } from "@/lib/client-access";
 import { effectiveDaysOnMarket, cumulativeDaysOnMarket, isRelisted } from "@/lib/days-on-market";
 import { WEEKLY_AFTER_DAYS } from "@/lib/weekly";
 import {
@@ -67,6 +69,20 @@ export default async function ClientDashboardPage({
 }) {
   const { slug } = await params;
 
+  // Access: the seller's cookie (from the /s/<token> link), the admin
+  // session, or an old /<slug> link during the grace period. Anyone else,
+  // including someone guessing a slug, gets the same "Get your link" form
+  // whether or not the slug exists, and nothing is loaded.
+  const { data: gate } = await supabaseAdmin
+    .from("listings")
+    .select("id, client_link_version")
+    .eq("slug", slug)
+    .maybeSingle();
+  const access = gate ? await hasClientAccess(gate) : null;
+  if (!access) {
+    return <GetYourLink slug={slug} contactEmail={CONTACT_EMAIL} contactPhone={contactPhone()} />;
+  }
+
   const { data: listing, error } = await supabaseAdmin
     .from("listings")
     .select(CLIENT_LISTING_FIELDS)
@@ -97,6 +113,7 @@ export default async function ClientDashboardPage({
       // toClientEntry drops it with every other non-client field.
       .select(`${CLIENT_ACTIVITY_FIELDS}, created_at`)
       .eq("listing_id", listing.id)
+      .is("voided_at", null)
       .order("date", { ascending: false }),
     supabaseAdmin
       .from("platform_views")

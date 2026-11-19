@@ -18,3 +18,26 @@ change in the dashboard.
   `open_house_disclosure_requests` to `activity_entries`, a count of buyer
   disclosure package requests at an Open House (Showing/Preview entries
   already had the boolean `buyer_packet_requested` for this).
+- `0004_weekly_seller_update.sql` — `listing_sellers`, `weekly_update_drafts`,
+  and `page_views.user_agent` for the weekly seller update.
+- `0005_client_access.sql` — private seller links: `listings.client_link_token`
+  (64 hex characters, backfilled), `client_link_version`,
+  `client_link_rotated_at`; the `client_link_requests` table for "Email me my
+  link"; and `page_views.via`. Run before deploying Phase 1.
+- (no `0006`: Phase 2 had no schema change.)
+- `0007_feedback_approval.sql` — `activity_entries.feedback_approved_at` /
+  `feedback_approved_by`, a trigger that hides visible feedback again when
+  its text is edited without a new approval, and a one-time backfill
+  (`raw_feedback` from `display_feedback` where empty; already-visible
+  entries marked approved by `'legacy'`). Run before deploying Phase 3.
+- `0008_change_log_and_dedupe.sql` — `change_log` table filled by a
+  `log_change` trigger on `listings`, `activity_entries`, `listing_sellers`
+  and `platform_views` (before/after JSON, actor from the new
+  `updated_by` column); `activity_entries.source_message_id` /
+  `showingtime_id` with unique indexes; one `platform_views` row per listing
+  per date. Run before deploying Phase 4.
+- `0009_activity_fields.sql` — activity fields: showing start/end time,
+  agent email/phone/brokerage (never shown to clients), `source`, feedback
+  request/nudge/received timestamps, `follow_up_sent_at`, and
+  `voided_at` / `void_reason`; plus the `login_attempts` table for the admin
+  login rate limit. Run before deploying Phase 5.

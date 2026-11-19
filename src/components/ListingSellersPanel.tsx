@@ -2,7 +2,15 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { createSeller, deleteSeller, getPageViewLog, getSellers, updateSeller } from "@/lib/actions";
+import {
+  createSeller,
+  deleteSeller,
+  getClientLink,
+  getPageViewLog,
+  getSellers,
+  rotateClientLink,
+  updateSeller,
+} from "@/lib/actions";
 
 interface Seller {
   id: string;
@@ -16,7 +24,14 @@ interface ViewRow {
   id: string;
   viewed_at: string;
   user_agent: string | null;
+  via?: string | null;
 }
+
+const VIA_LABEL: Record<string, string> = {
+  link: "from link",
+  cookie: "return visit",
+  legacy_slug: "old link",
+};
 
 const input =
   "rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500";
@@ -65,13 +80,35 @@ export default function ListingSellersPanel({
   const [copied, setCopied] = useState(false);
   const [showLog, setShowLog] = useState(false);
 
-  const clientUrl = `https://listings.aufhammerhomes.com/${slug}`;
+  const [token, setToken] = useState<string | null>(null);
+  const [rotatedAt, setRotatedAt] = useState<string | null>(null);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [linkError, setLinkError] = useState("");
+
+  // Private seller link: opening it signs that device in for a year.
+  const clientUrl = token ? `https://listings.aufhammerhomes.com/s/${token}` : null;
+  const readableUrl = `listings.aufhammerhomes.com/${slug}`;
 
   async function load() {
-    const [s, v] = await Promise.all([getSellers(listingId), getPageViewLog(listingId, 100)]);
+    const [s, v, l] = await Promise.all([
+      getSellers(listingId),
+      getPageViewLog(listingId, 100),
+      getClientLink(listingId),
+    ]);
     if (s.error) setError(s.error);
     setSellers(s.data as Seller[]);
     setViews(v.data as ViewRow[]);
+    if (l.error) setLinkError(l.error);
+    setToken((l.data?.client_link_token as string | undefined) ?? null);
+    setRotatedAt((l.data?.client_link_rotated_at as string | undefined) ?? null);
+  }
+
+  async function handleReset() {
+    setLinkError("");
+    const { error } = await rotateClientLink(listingId);
+    setConfirmReset(false);
+    if (error) return setLinkError(error);
+    load();
   }
 
   useEffect(() => {
@@ -187,22 +224,50 @@ export default function ListingSellersPanel({
       {/* Client link + view log */}
       <div className="rounded-xl border border-gray-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-gray-900 mb-2">Client link</h3>
-        <div className="flex items-center gap-2 mb-1">
-          <code className="text-xs text-gray-700 bg-gray-50 rounded px-2 py-1 truncate">{clientUrl.replace("https://", "")}</code>
-          <button
-            onClick={async () => {
-              await navigator.clipboard.writeText(clientUrl);
-              setCopied(true);
-              setTimeout(() => setCopied(false), 1500);
-            }}
-            className="text-xs font-medium text-green-700 hover:text-green-900"
-          >
-            {copied ? "Copied" : "Copy"}
-          </button>
-        </div>
-        <p className="text-xs text-gray-400 mb-3">
-          Your own visits while logged into admin are not counted. Forwarded links count as the client.
+        {clientUrl ? (
+          <div className="flex items-center gap-2 mb-1">
+            <code className="text-xs text-gray-700 bg-gray-50 rounded px-2 py-1 truncate" title={clientUrl}>
+              {clientUrl.replace("https://", "")}
+            </code>
+            <button
+              onClick={async () => {
+                await navigator.clipboard.writeText(clientUrl);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
+              }}
+              className="text-xs font-medium text-green-700 hover:text-green-900"
+            >
+              {copied ? "Copied" : "Copy"}
+            </button>
+          </div>
+        ) : (
+          <p className="text-xs text-red-600 mb-1">{linkError || "No private link yet (run 0005_client_access.sql)."}</p>
+        )}
+        <p className="text-xs text-gray-400 mb-1">
+          Private sign-in link: opening it keeps that device signed in for a year, then it shows the page at{" "}
+          {readableUrl}. Send it only to the sellers. Your own visits while logged into admin are not counted.
         </p>
+        <div className="text-xs mb-3">
+          {confirmReset ? (
+            <span className="flex flex-wrap items-center gap-2">
+              <span className="text-red-700">
+                The old link and every device signed in with it stop working. Sellers need the new link.
+              </span>
+              <button onClick={handleReset} className="font-semibold text-red-700 hover:text-red-900">
+                Reset link
+              </button>
+              <button onClick={() => setConfirmReset(false)} className="text-gray-400 hover:text-gray-700">
+                Cancel
+              </button>
+            </span>
+          ) : (
+            <button onClick={() => setConfirmReset(true)} className="text-gray-500 hover:text-red-700">
+              Reset client link
+            </button>
+          )}
+          {rotatedAt && <span className="text-gray-400"> · last reset {formatViewTime(rotatedAt)}</span>}
+          {linkError && clientUrl && <span className="text-red-600"> {linkError}</span>}
+        </div>
         <p className="text-sm text-gray-600">
           Last viewed:{" "}
           <span className="font-semibold text-gray-900">{views[0] ? formatViewTime(views[0].viewed_at) : "never"}</span>
@@ -221,7 +286,10 @@ export default function ListingSellersPanel({
             {views.map((v) => (
               <li key={v.id} className="flex justify-between py-1">
                 <span className="text-gray-700">{formatViewTime(v.viewed_at)}</span>
-                <span className="text-gray-400">{deviceLabel(v.user_agent)}</span>
+                <span className="text-gray-400">
+                  {deviceLabel(v.user_agent)}
+                  {v.via && <span className="ml-2 text-gray-300">{VIA_LABEL[v.via] ?? v.via}</span>}
+                </span>
               </li>
             ))}
           </ul>
