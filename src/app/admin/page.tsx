@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getListings, getShowingCounts } from "@/lib/actions";
 import ClientLinkRequests from "@/components/ClientLinkRequests";
-import FeedbackReviewBanner from "@/components/FeedbackReviewBanner";
 import { effectiveDaysOnMarket, cumulativeDaysOnMarket, isRelisted } from "@/lib/days-on-market";
 
 type Listing = {
@@ -65,7 +64,6 @@ export default function AdminListingsPage() {
   return (
     <div>
       <ClientLinkRequests />
-      <FeedbackReviewBanner />
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Listings</h1>
