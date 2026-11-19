@@ -8,6 +8,7 @@ import {
   addPlatformViews,
   addSeller,
   getActivity,
+  getChangeLog,
   getClientLinkViews,
   getListing,
   getPlatformViews,
@@ -108,6 +109,18 @@ const handler = createMcpHandler(
     );
 
     server.registerTool(
+      "get_change_log",
+      {
+        title: "Get change history",
+        description:
+          "Every change to a listing, its activity entries, online views and sellers, newest first: when, who (claude or will), what, and the before/after values of changed fields.",
+        inputSchema: z.object({ listing: listingRef, limit: z.number().int().min(1).max(500).default(50) }),
+        annotations: readOnly,
+      },
+      async ({ listing, limit }) => json(await getChangeLog(listing, limit))
+    );
+
+    server.registerTool(
       "get_weekly_checklist",
       {
         title: "Weekly missing-data checklist",
@@ -156,7 +169,7 @@ const handler = createMcpHandler(
       {
         title: "Add showing, preview, or open house",
         description:
-          "Add one activity entry. Show Will a summary first and set confirmed only after he approves. Feedback always saves hidden from the client; use update_activity with feedback_visible after Will approves the client-facing text. Pass the listing_id from list_listings or get_listing.",
+          "Add one activity entry. Show Will a summary first and set confirmed only after he approves. Returns possible_duplicate (nothing saved) when the same listing, date, type and agent is already logged, and already_logged when the source_message_id or showingtime_id was used before. Feedback always saves hidden from the client; use update_activity with feedback_visible after Will approves the client-facing text. Pass the listing_id from list_listings or get_listing.",
         inputSchema: z.object({
           listing_id: listingId,
           confirmed,
@@ -170,6 +183,12 @@ const handler = createMcpHandler(
           display_feedback: z.string().optional().describe(DISPLAY_DESC),
           open_house_groups: z.number().int().min(0).optional(),
           open_house_disclosure_requests: z.number().int().min(0).optional(),
+          source_message_id: z.string().min(1).optional().describe("Gmail message id this entry came from. The same id can only be logged once."),
+          showingtime_id: z.string().min(1).optional().describe("ShowingTime appointment id. The same id can only be logged once."),
+          allow_duplicate: z
+            .boolean()
+            .optional()
+            .describe("Only after Will confirms this is a separate visit from the existing entry returned with possible_duplicate."),
         }),
         annotations: { ...write, idempotentHint: false },
       },

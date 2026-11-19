@@ -4,6 +4,26 @@ import { randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { supabaseAdmin } from "./supabase";
 import { ADMIN_COOKIE, isValidAdminSession } from "./admin-session";
+import { formatChangeLog } from "./change-log";
+import { ADMIN_ACTOR_COOKIE, toAdminActor } from "./admin-actor";
+
+/** The admin profile making this change ('will' unless the Assistant
+ *  profile is selected in the sidebar). */
+async function adminActor() {
+  return toAdminActor((await cookies()).get(ADMIN_ACTOR_COOKIE)?.value);
+}
+
+/** Who changed a tracked row (read by the 0008 change_log trigger). */
+async function byAdmin() {
+  return { updated_by: await adminActor(), updated_at: new Date().toISOString() };
+}
+
+/** Admin deletes: stamp the row first so change_log records the admin, not the
+ *  last editor, as the actor of the delete. */
+async function stampedDelete(table: "listings" | "activity_entries" | "platform_views" | "listing_sellers", id: string) {
+  await supabaseAdmin.from(table).update(await byAdmin()).eq("id", id);
+  return supabaseAdmin.from(table).delete().eq("id", id);
+}
 
 async function requireAdmin() {
   const cookieStore = await cookies();
@@ -55,7 +75,7 @@ export async function createListing(
   await requireAdmin();
   const { error } = await supabaseAdmin
     .from("listings")
-    .insert({ ...listingData, client_link_token: newClientLinkToken() });
+    .insert({ ...listingData, client_link_token: newClientLinkToken(), ...(await byAdmin()) });
   return { error: error?.message ?? null };
 }
 
@@ -87,6 +107,7 @@ export async function rotateClientLink(id: string) {
   const { error } = await supabaseAdmin
     .from("listings")
     .update({
+      ...(await byAdmin()),
       client_link_token: newClientLinkToken(),
       client_link_version: (cur.client_link_version ?? 1) + 1,
       client_link_rotated_at: new Date().toISOString(),
@@ -117,7 +138,7 @@ export async function updateListing(
   await requireAdmin();
   const { error } = await supabaseAdmin
     .from("listings")
-    .update(updateData)
+    .update({ ...updateData, ...(await byAdmin()) })
     .eq("id", id);
   return { error: error?.message ?? null };
 }
@@ -131,10 +152,7 @@ export async function deleteListing(id: string) {
     .update({ listing_id: null })
     .eq("listing_id", id);
   if (detachError) return { error: detachError.message };
-  const { error } = await supabaseAdmin
-    .from("listings")
-    .delete()
-    .eq("id", id);
+  const { error } = await stampedDelete("listings", id);
   return { error: error?.message ?? null };
 }
 
@@ -237,11 +255,11 @@ export async function createActivityEntry(
   // Will saving it visible is the approval.
   if (row.feedback_visible === true) {
     row.feedback_approved_at = new Date().toISOString();
-    row.feedback_approved_by = "will";
+    row.feedback_approved_by = await adminActor();
   }
   const { error } = await supabaseAdmin
     .from("activity_entries")
-    .insert(row);
+    .insert({ ...row, ...(await byAdmin()) });
   return { error: error?.message ?? null };
 }
 
@@ -263,12 +281,12 @@ export async function updateActivityEntry(
     const textChanged = "display_feedback" in row && (row.display_feedback ?? null) !== (before?.display_feedback ?? null);
     if (row.feedback_visible === true && (!before?.feedback_visible || textChanged)) {
       row.feedback_approved_at = new Date().toISOString();
-      row.feedback_approved_by = "will";
+      row.feedback_approved_by = await adminActor();
     }
   }
   const { error } = await supabaseAdmin
     .from("activity_entries")
-    .update(row)
+    .update({ ...row, ...(await byAdmin()) })
     .eq("id", id);
   return { error: error?.message ?? null };
 }
@@ -291,7 +309,7 @@ export async function approveLegacyFeedback(id: string) {
   await requireAdmin();
   const { error } = await supabaseAdmin
     .from("activity_entries")
-    .update({ feedback_approved_by: "will", feedback_approved_at: new Date().toISOString() })
+    .update({ ...(await byAdmin()), feedback_approved_by: await adminActor(), feedback_approved_at: new Date().toISOString() })
     .eq("id", id)
     .eq("feedback_approved_by", "legacy");
   return { error: error?.message ?? null };
@@ -302,17 +320,14 @@ export async function hideFeedback(id: string) {
   await requireAdmin();
   const { error } = await supabaseAdmin
     .from("activity_entries")
-    .update({ feedback_visible: false })
+    .update({ ...(await byAdmin()), feedback_visible: false })
     .eq("id", id);
   return { error: error?.message ?? null };
 }
 
 export async function deleteActivityEntry(id: string) {
   await requireAdmin();
-  const { error } = await supabaseAdmin
-    .from("activity_entries")
-    .delete()
-    .eq("id", id);
+  const { error } = await stampedDelete("activity_entries", id);
   return { error: error?.message ?? null };
 }
 
@@ -334,7 +349,8 @@ export async function createPlatformView(
   await requireAdmin();
   const { error } = await supabaseAdmin
     .from("platform_views")
-    .insert(entry);
+    .insert({ ...entry, ...(await byAdmin()) });
+  if (error?.code === "23505") return { error: "There is already an online views snapshot for that date. Edit it instead." };
   return { error: error?.message ?? null };
 }
 
@@ -345,17 +361,14 @@ export async function updatePlatformView(
   await requireAdmin();
   const { error } = await supabaseAdmin
     .from("platform_views")
-    .update(updates)
+    .update({ ...updates, ...(await byAdmin()) })
     .eq("id", id);
   return { error: error?.message ?? null };
 }
 
 export async function deletePlatformView(id: string) {
   await requireAdmin();
-  const { error } = await supabaseAdmin
-    .from("platform_views")
-    .delete()
-    .eq("id", id);
+  const { error } = await stampedDelete("platform_views", id);
   return { error: error?.message ?? null };
 }
 
@@ -470,19 +483,19 @@ export async function createSeller(seller: {
   sort_order?: number;
 }) {
   await requireAdmin();
-  const { error } = await supabaseAdmin.from("listing_sellers").insert(seller);
+  const { error } = await supabaseAdmin.from("listing_sellers").insert({ ...seller, ...(await byAdmin()) });
   return { error: error?.message ?? null };
 }
 
 export async function updateSeller(id: string, updates: Record<string, unknown>) {
   await requireAdmin();
-  const { error } = await supabaseAdmin.from("listing_sellers").update(updates).eq("id", id);
+  const { error } = await supabaseAdmin.from("listing_sellers").update({ ...updates, ...(await byAdmin()) }).eq("id", id);
   return { error: error?.message ?? null };
 }
 
 export async function deleteSeller(id: string) {
   await requireAdmin();
-  const { error } = await supabaseAdmin.from("listing_sellers").delete().eq("id", id);
+  const { error } = await stampedDelete("listing_sellers", id);
   return { error: error?.message ?? null };
 }
 
@@ -505,4 +518,20 @@ export async function getWeeklyEmailPreview(listingId: string, sendDate: string)
   await requireAdmin();
   const { loadWeeklyEmail } = await import("./weekly-email-data");
   return loadWeeklyEmail(listingId, sendDate, { testMode: true });
+}
+
+// ── Change history (0008) ──────────────────────────────────────────────────
+
+export async function getChangeLogForListing(listingId: string, limit = 200) {
+  await requireAdmin();
+  const { data, error } = await supabaseAdmin
+    .from("change_log")
+    .select("at, actor, action, table_name, row_id, before, after")
+    .eq("listing_id", listingId)
+    .order("at", { ascending: false })
+    .limit(limit);
+  const rows = formatChangeLog((data ?? []) as Record<string, unknown>[]).filter(
+    (x) => !("changed" in x) || Object.keys(x.changed).length > 0
+  );
+  return { data: rows, error: error?.message ?? null };
 }
