@@ -266,6 +266,11 @@ function clean(obj: Row): Row {
   return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
 }
 
+const NEEDS_RAW: Err = {
+  error:
+    "Not saved. display_feedback (client-facing) needs the agent's original words in raw_feedback too. Add raw_feedback exactly as the agent wrote it and call again.",
+};
+
 // ── saved_summary: one line the agent echoes back to Will after a write ──
 
 const TYPE_LABEL: Record<string, string> = {
@@ -322,6 +327,7 @@ export async function addActivity(input: {
 }) {
   const c = needsConfirm(input.confirmed);
   if (c) return c;
+  if (input.display_feedback && !input.raw_feedback) return NEEDS_RAW;
   const r = await listingById(input.listing_id);
   if ("error" in r) return r;
   const { listing_id: _l, confirmed: _c, ...fields } = input;
@@ -350,12 +356,25 @@ export async function updateActivity(input: { id: string; confirmed: boolean } &
   if (Object.keys(updates).length === 0) return { error: "Nothing to update." };
   const { data: before } = await supabaseAdmin.from("activity_entries").select().eq("id", id).maybeSingle();
   if (!before) return { error: "No activity entry with that id." };
+  if (updates.display_feedback && !updates.raw_feedback && !before.raw_feedback) return NEEDS_RAW;
+  const requested = Object.keys(updates);
+  if (updates.feedback_visible === true) {
+    // Will approved the exact client-facing text in chat (see the tool
+    // description). Stamping the approval also keeps the text visible when
+    // display_feedback changes in the same call.
+    updates.feedback_approved_at = new Date().toISOString();
+    updates.feedback_approved_by = "will (via chat)";
+  }
   const { data, error } = await supabaseAdmin.from("activity_entries").update(updates).eq("id", id).select().maybeSingle();
   if (error) return { error: error.message };
   if (!data) return { error: "No activity entry with that id." };
+  const rehidden = before.feedback_visible && !data.feedback_visible && updates.feedback_visible === undefined;
   return {
     saved: data,
-    saved_summary: summaryLine({ action: "Updated activity", address: await addressOf(data.listing_id), entry: data, ...changedFields(before, data, Object.keys(updates)) }),
+    saved_summary: summaryLine({ action: "Updated activity", address: await addressOf(data.listing_id), entry: data, ...changedFields(before, data, requested) }),
+    ...(rehidden
+      ? { note: "The client-facing text changed, so it is hidden from the client again. Show Will the new text; after his OK, call update_activity with feedback_visible: true." }
+      : {}),
   };
 }
 
@@ -395,6 +414,7 @@ export async function addPlatformViews(input: {
 export async function updateListing(input: { listing_id: string; confirmed: boolean } & Row) {
   const c = needsConfirm(input.confirmed);
   if (c) return c;
+  if (input.display_feedback && !input.raw_feedback) return NEEDS_RAW;
   const r = await listingById(input.listing_id);
   if ("error" in r) return r;
   const { listing_id: _l, confirmed: _c, ...fields } = input;

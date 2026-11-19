@@ -116,7 +116,14 @@ const hasColumn = async (table: string, col: string) => !(await db.from(table).s
   c = await call("update_listing", { listing_id: thorndyke.id, confirmed: true, property_address: "1537 Thorndyke Ave W" });
   ok(!c.isError && c.data.saved?.property_address === "1537 Thorndyke Ave W", "confirmed no-op listing edit saves");
   ok(c.data.saved_summary === "Updated listing: 1537 Thorndyke Ave W | no fields changed (already the same: property_address)", `write returns saved_summary: ${c.data.saved_summary}`);
+  // Phase 3: client-facing text needs the agent's original words; guidance in descriptions.
+  c = await call("add_activity", { listing_id: thorndyke.id, confirmed: true, type: "buyer_showing", date: "2026-11-01", display_feedback: "Liked the kitchen." });
+  ok(c.isError && /raw_feedback/.test(c.data.error), "display_feedback without raw_feedback is refused (nothing saved)");
   m = await mcp(t.access_token, "tools/list");
+  const toolDefs = (m.body?.result?.tools ?? []) as { name: string; inputSchema: { properties: Record<string, { description?: string }> } }[];
+  const props = (n: string) => toolDefs.find((x) => x.name === n)?.inputSchema.properties ?? {};
+  ok(/No buyer names, family status, age/.test(props("add_activity").display_feedback?.description ?? "") && /No buyer names/.test(props("update_activity").display_feedback?.description ?? ""), "display_feedback describes what must stay out of client text");
+  ok(/Only after Will has approved the exact client-facing text/.test(props("update_activity").feedback_visible?.description ?? ""), "feedback_visible requires approval of the exact text");
   const writeTools = (m.body?.result?.tools ?? []).filter((x: { inputSchema: { properties: Record<string, unknown> } }) => "confirmed" in (x.inputSchema?.properties ?? {}));
   ok(writeTools.length >= 6 && writeTools.every((x: { inputSchema: { properties: { confirmed: { description: string } } } }) => /Never reuse an earlier OK/.test(x.inputSchema.properties.confirmed.description)), `confirmed is strict on every write tool (${writeTools.length})`);
   m = await mcp(t.access_token, "initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "1" } });

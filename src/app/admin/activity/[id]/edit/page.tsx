@@ -39,6 +39,7 @@ export default function EditActivityEntryPage() {
   const [openHouseGroups, setOpenHouseGroups] = useState<number | "">("");
   const [openHouseDisclosureRequests, setOpenHouseDisclosureRequests] = useState<number | "">("");
   const [loggedBy, setLoggedBy] = useState<string | null>(null);
+  const [rawFeedback, setRawFeedback] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchEntry() {
@@ -58,6 +59,7 @@ export default function EditActivityEntryPage() {
         setOpenHouseGroups(data.open_house_groups ?? "");
         setOpenHouseDisclosureRequests(data.open_house_disclosure_requests ?? "");
         setLoggedBy(data.logged_by ?? null);
+        setRawFeedback(data.raw_feedback ?? null);
       }
       setLoading(false);
     }
@@ -253,10 +255,18 @@ export default function EditActivityEntryPage() {
             </>
           )}
 
+          {/* Agent's original words: private, for comparison */}
+          {rawFeedback && rawFeedback !== feedback && (
+            <div>
+              <p className="block text-sm font-medium text-gray-700 mb-1">Agent&apos;s original words (private)</p>
+              <p className="text-sm text-gray-600 whitespace-pre-wrap rounded-md bg-gray-50 px-3 py-2">{rawFeedback}</p>
+            </div>
+          )}
+
           {/* Feedback */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Feedback
+              Feedback {feedbackVisible ? "(client sees this)" : ""}
             </label>
             <textarea
               value={feedback}

@@ -231,9 +231,17 @@ export async function createActivityEntry(
   entry: Record<string, unknown>
 ) {
   await requireAdmin();
+  const row = { ...entry };
+  // raw_feedback keeps the original words; admin forms only have one box.
+  if (row.display_feedback && !row.raw_feedback) row.raw_feedback = row.display_feedback;
+  // Will saving it visible is the approval.
+  if (row.feedback_visible === true) {
+    row.feedback_approved_at = new Date().toISOString();
+    row.feedback_approved_by = "will";
+  }
   const { error } = await supabaseAdmin
     .from("activity_entries")
-    .insert(entry);
+    .insert(row);
   return { error: error?.message ?? null };
 }
 
@@ -242,9 +250,59 @@ export async function updateActivityEntry(
   updates: Record<string, unknown>
 ) {
   await requireAdmin();
+  const row = { ...updates };
+  if ("display_feedback" in row || "feedback_visible" in row) {
+    const { data: before } = await supabaseAdmin
+      .from("activity_entries")
+      .select("display_feedback, raw_feedback, feedback_visible")
+      .eq("id", id)
+      .maybeSingle();
+    if (row.display_feedback && !row.raw_feedback && !before?.raw_feedback) row.raw_feedback = row.display_feedback;
+    // Will ticking visible, or saving new text while it's visible, is the
+    // approval (otherwise the 0007 trigger hides edited text again).
+    const textChanged = "display_feedback" in row && (row.display_feedback ?? null) !== (before?.display_feedback ?? null);
+    if (row.feedback_visible === true && (!before?.feedback_visible || textChanged)) {
+      row.feedback_approved_at = new Date().toISOString();
+      row.feedback_approved_by = "will";
+    }
+  }
   const { error } = await supabaseAdmin
     .from("activity_entries")
-    .update(updates)
+    .update(row)
+    .eq("id", id);
+  return { error: error?.message ?? null };
+}
+
+/** Feedback that was already visible before approvals existed (0007
+ *  backfill marks it 'legacy'), for Will to re-read once. */
+export async function getLegacyVisibleFeedback() {
+  await requireAdmin();
+  const { data, error } = await supabaseAdmin
+    .from("activity_entries")
+    .select("id, date, type, agent_name, display_feedback, raw_feedback, listing_id, listings(property_address)")
+    .eq("feedback_approved_by", "legacy")
+    .eq("feedback_visible", true)
+    .order("date", { ascending: false });
+  return { data: data ?? [], error: error?.message ?? null };
+}
+
+/** "Looks good": Will has re-read it. */
+export async function approveLegacyFeedback(id: string) {
+  await requireAdmin();
+  const { error } = await supabaseAdmin
+    .from("activity_entries")
+    .update({ feedback_approved_by: "will", feedback_approved_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("feedback_approved_by", "legacy");
+  return { error: error?.message ?? null };
+}
+
+/** "Hide": take it off the client page and weekly email. Text is kept. */
+export async function hideFeedback(id: string) {
+  await requireAdmin();
+  const { error } = await supabaseAdmin
+    .from("activity_entries")
+    .update({ feedback_visible: false })
     .eq("id", id);
   return { error: error?.message ?? null };
 }
