@@ -2,9 +2,9 @@
 // working on the tracker with Will, from claude.ai). Ported from
 // aufhammer-crm. There is exactly one user, so everything is stateless:
 // client registrations, authorization codes, and access/refresh tokens are
-// all HMAC-signed blobs rather than database rows. The signing key is
-// derived from ADMIN_PASSWORD, so changing it also revokes every connector
-// token.
+// all HMAC-signed blobs rather than database rows. The signing key is the
+// MCP_OAUTH_SECRET env var (separate from ADMIN_PASSWORD, so the two can be
+// rotated independently); changing it revokes every connector token.
 //
 // Clients identify themselves either via Dynamic Client Registration
 // (/oauth/register hands back a signed client_id) or a Client ID Metadata
@@ -26,9 +26,8 @@ type TokenPayload =
   | { t: "refresh"; cid: string; res: string; exp: number };
 
 function secret(): string {
-  const s = process.env.ADMIN_PASSWORD?.trim();
-  if (!s) throw new Error("Missing ADMIN_PASSWORD env var");
-  // Domain-separated from the admin session cookie key (src/lib/admin-session.ts).
+  const s = process.env.MCP_OAUTH_SECRET?.trim();
+  if (!s || s.length < 16) throw new Error("Missing MCP_OAUTH_SECRET env var (16+ characters)");
   return `mcp-oauth:${s}`;
 }
 

@@ -49,6 +49,8 @@ interface ActivityEntry {
   open_house_groups: number | null;
   open_house_disclosure_requests: number | null;
   logged_by: string | null;
+  voided_at?: string | null;
+  void_reason?: string | null;
 }
 
 interface PlatformView {
@@ -254,9 +256,11 @@ export default function ListingDetailPage() {
 
   // ── Computed stats ─────────────────────────────────────────────────────
 
-  const buyerShowingCount = entries.filter((e) => e.type === "buyer_showing").length;
-  const agentPreviewCount = entries.filter((e) => e.type === "agent_preview").length;
-  const openHouseCount = entries.filter((e) => e.type === "open_house").length;
+  // Voided entries stay in the list (struck through) but don't count.
+  const counted = entries.filter((e) => !e.voided_at);
+  const buyerShowingCount = counted.filter((e) => e.type === "buyer_showing").length;
+  const agentPreviewCount = counted.filter((e) => e.type === "agent_preview").length;
+  const openHouseCount = counted.filter((e) => e.type === "open_house").length;
   const dom = listing ? effectiveDaysOnMarket(listing) : null;
   const cdom = listing ? cumulativeDaysOnMarket(listing) : null;
 
@@ -726,7 +730,8 @@ export default function ListingDetailPage() {
                 return (
                   <div
                     key={entry.id}
-                    className="px-4 sm:px-6 py-3 text-sm hover:bg-gray-50"
+                    className={`px-4 sm:px-6 py-3 text-sm hover:bg-gray-50 ${entry.voided_at ? "line-through opacity-50" : ""}`}
+                    title={entry.voided_at ? `Void: ${entry.void_reason ?? "no reason given"}` : undefined}
                   >
                     {/* Desktop: inline row */}
                     <div className="hidden sm:flex items-center gap-3">

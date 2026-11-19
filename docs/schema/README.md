@@ -36,3 +36,8 @@ change in the dashboard.
   `updated_by` column); `activity_entries.source_message_id` /
   `showingtime_id` with unique indexes; one `platform_views` row per listing
   per date. Run before deploying Phase 4.
+- `0009_activity_fields.sql` — activity fields: showing start/end time,
+  agent email/phone/brokerage (never shown to clients), `source`, feedback
+  request/nudge/received timestamps, `follow_up_sent_at`, and
+  `voided_at` / `void_reason`; plus the `login_attempts` table for the admin
+  login rate limit. Run before deploying Phase 5.

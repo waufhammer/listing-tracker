@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { supabaseAdmin } from "./supabase";
 import { ADMIN_COOKIE, isValidAdminSession } from "./admin-session";
 import { formatChangeLog } from "./change-log";
+import { futureDateError, stampActivityTimes } from "./activity-rules";
 import { ADMIN_ACTOR_COOKIE, toAdminActor } from "./admin-actor";
 
 /** The admin profile making this change ('will' unless the Assistant
@@ -195,6 +196,7 @@ export async function getShowingCounts(listingIds: string[]) {
         .from("activity_entries")
         .select("id", { count: "exact", head: true })
         .eq("listing_id", listingId)
+        .is("voided_at", null)
         .in("type", ["buyer_showing", "agent_preview"]);
       if (!error && count !== null) {
         counts[listingId] = count;
@@ -249,7 +251,9 @@ export async function createActivityEntry(
   entry: Record<string, unknown>
 ) {
   await requireAdmin();
-  const row = { ...entry };
+  const future = futureDateError(entry.date);
+  if (future) return { error: future };
+  const row = stampActivityTimes({ ...entry });
   // raw_feedback keeps the original words; admin forms only have one box.
   if (row.display_feedback && !row.raw_feedback) row.raw_feedback = row.display_feedback;
   // Will saving it visible is the approval.
@@ -268,13 +272,16 @@ export async function updateActivityEntry(
   updates: Record<string, unknown>
 ) {
   await requireAdmin();
+  const future = futureDateError(updates.date);
+  if (future) return { error: future };
   const row = { ...updates };
+  const { data: before } = await supabaseAdmin
+    .from("activity_entries")
+    .select("display_feedback, raw_feedback, feedback_visible, follow_up_sent_at, feedback_received_at")
+    .eq("id", id)
+    .maybeSingle();
+  stampActivityTimes(row, before);
   if ("display_feedback" in row || "feedback_visible" in row) {
-    const { data: before } = await supabaseAdmin
-      .from("activity_entries")
-      .select("display_feedback, raw_feedback, feedback_visible")
-      .eq("id", id)
-      .maybeSingle();
     if (row.display_feedback && !row.raw_feedback && !before?.raw_feedback) row.raw_feedback = row.display_feedback;
     // Will ticking visible, or saving new text while it's visible, is the
     // approval (otherwise the 0007 trigger hides edited text again).
@@ -347,6 +354,8 @@ export async function createPlatformView(
   entry: Record<string, unknown>
 ) {
   await requireAdmin();
+  const future = futureDateError(entry.date);
+  if (future) return { error: future };
   const { error } = await supabaseAdmin
     .from("platform_views")
     .insert({ ...entry, ...(await byAdmin()) });
