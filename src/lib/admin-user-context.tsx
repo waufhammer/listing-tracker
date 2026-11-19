@@ -37,6 +37,9 @@ export function AdminUserProvider({ children }: { children: ReactNode }) {
       try {
         const parsed = JSON.parse(stored);
         if (parsed.id && parsed.name) {
+          // localStorage only exists in the browser, so this can't be the
+          // initial state without a server/client hydration mismatch.
+          // eslint-disable-next-line react-hooks/set-state-in-effect
           setUserState(parsed);
         }
       } catch {
