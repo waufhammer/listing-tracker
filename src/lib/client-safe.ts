@@ -10,7 +10,7 @@ export const CLIENT_ACTIVITY_FIELDS =
 /** Listing columns the client page uses. Never `*`: listing_notes and any
  *  future column must not reach the page by default. */
 export const CLIENT_LISTING_FIELDS =
-  "id, slug, property_address, client_name, status, list_date, pending_date, sold_date, first_look, prior_days_on_market, photo_url, platform_views_public";
+  "id, slug, property_address, client_name, status, list_date, pending_date, sold_date, cancelled_date, first_look, prior_days_on_market, photo_url, platform_views_public";
 
 export const CLIENT_PLATFORM_VIEW_FIELDS = "date, zillow_views, redfin_views, compass_views, created_at";
 

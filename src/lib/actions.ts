@@ -7,6 +7,7 @@ import { ADMIN_COOKIE, isValidAdminSession } from "./admin-session";
 import { formatChangeLog } from "./change-log";
 import { futureDateError, stampActivityTimes } from "./activity-rules";
 import { ADMIN_ACTOR_COOKIE, toAdminActor } from "./admin-actor";
+import { applyStatusRules } from "./listing-status";
 
 /** The admin profile making this change ('will' unless the Assistant
  *  profile is selected in the sidebar). */
@@ -137,6 +138,18 @@ export async function updateListing(
   updateData: Record<string, unknown>
 ) {
   await requireAdmin();
+  if ("status" in updateData || "cancelled_date" in updateData) {
+    const { data: before, error: readError } = await supabaseAdmin
+      .from("listings")
+      .select("status, list_date, cancelled_date, prior_days_on_market, first_look")
+      .eq("id", id)
+      .maybeSingle();
+    if (readError) return { error: readError.message };
+    if (!before) return { error: "Listing not found." };
+    const checked = applyStatusRules(before, updateData);
+    if ("error" in checked) return { error: checked.error };
+    updateData = checked.updates;
+  }
   const { error } = await supabaseAdmin
     .from("listings")
     .update({ ...updateData, ...(await byAdmin()) })

@@ -17,6 +17,7 @@ const STATUS_OPTIONS = [
   { value: "active", label: "Active" },
   { value: "pending", label: "Pending" },
   { value: "sold", label: "Sold" },
+  { value: "cancelled", label: "Cancelled" },
 ];
 
 function isValidSlug(slug: string): boolean {
@@ -35,6 +36,9 @@ export default function EditListingPage() {
   const [status, setStatus] = useState("prepping");
   const [pendingDate, setPendingDate] = useState("");
   const [soldDate, setSoldDate] = useState("");
+  const [cancelledDate, setCancelledDate] = useState("");
+  const [originalStatus, setOriginalStatus] = useState("");
+  const [originalListDate, setOriginalListDate] = useState("");
   const [listPrice, setListPrice] = useState<number | "">("");
   const [salePrice, setSalePrice] = useState<number | "">("");
   const [offersReceived, setOffersReceived] = useState<number | "">("");
@@ -99,6 +103,9 @@ export default function EditListingPage() {
       setStatus(data.status ?? "prepping");
       setPendingDate(data.pending_date ?? "");
       setSoldDate(data.sold_date ?? "");
+      setCancelledDate(data.cancelled_date ?? "");
+      setOriginalStatus(data.status ?? "");
+      setOriginalListDate(data.list_date ?? "");
       setListPrice(data.list_price ?? "");
       setSalePrice(data.sale_price ?? "");
       setOffersReceived(data.offers_received ?? "");
@@ -147,6 +154,14 @@ export default function EditListingPage() {
       setError("Sold date is required when status is Sold.");
       return;
     }
+    if (status === "cancelled" && !cancelledDate) {
+      setError("Cancel date is required when status is Cancelled.");
+      return;
+    }
+    if (originalStatus === "cancelled" && status === "active" && listDate === originalListDate) {
+      setError("To relist, change List Date to the relist date.");
+      return;
+    }
 
     if (submitting) return;
     setSubmitting(true);
@@ -181,6 +196,7 @@ export default function EditListingPage() {
         status,
         pending_date: pendingDate || null,
         sold_date: soldDate || null,
+        ...(status === "cancelled" ? { cancelled_date: cancelledDate } : {}),
         list_price: listPrice === "" ? null : listPrice,
         sale_price: salePrice === "" ? null : salePrice,
         offers_received: offersReceived === "" ? null : offersReceived,
@@ -385,6 +401,32 @@ export default function EditListingPage() {
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
                 />
               </div>
+            )}
+
+            {/* Cancel Date */}
+            {status === "cancelled" && (
+              <div>
+                <label htmlFor="cancelled_date" className="block text-sm font-medium text-gray-700 mb-1">
+                  Cancel Date <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="cancelled_date"
+                  type="date"
+                  value={cancelledDate}
+                  onChange={(e) => setCancelledDate(e.target.value)}
+                  required
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Days on market stop on this date. Weekly emails stop; the seller page stays up.
+                </p>
+              </div>
+            )}
+
+            {originalStatus === "cancelled" && status === "active" && (
+              <p className="text-xs text-gray-600 rounded-lg bg-gray-50 border border-gray-200 px-3 py-2">
+                Relisting: set List Date to the relist date. The days from the cancelled period are added to prior days on market automatically, so CDOM stays right.
+              </p>
             )}
 
             {/* Sold Date */}

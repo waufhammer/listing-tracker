@@ -21,6 +21,7 @@ interface Listing {
   list_date: string | null;
   pending_date: string | null;
   sold_date: string | null;
+  cancelled_date: string | null;
   zillow_visible: boolean;
   redfin_visible: boolean;
   compass_visible: boolean;
@@ -111,6 +112,7 @@ const STATUS_OPTIONS = [
   { value: "active", label: "Active" },
   { value: "pending", label: "Pending" },
   { value: "sold", label: "Sold" },
+  { value: "cancelled", label: "Cancelled" },
 ];
 
 const statusColor: Record<string, string> = {
@@ -118,6 +120,7 @@ const statusColor: Record<string, string> = {
   active: "bg-green-100 text-green-800",
   pending: "bg-amber-100 text-amber-800",
   sold: "bg-red-100 text-red-800",
+  cancelled: "bg-gray-200 text-gray-700",
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -185,6 +188,7 @@ export default function ListingDetailPage() {
   const [editStatus, setEditStatus] = useState("prepping");
   const [editPendingDate, setEditPendingDate] = useState("");
   const [editSoldDate, setEditSoldDate] = useState("");
+  const [editCancelledDate, setEditCancelledDate] = useState("");
   const [editListPrice, setEditListPrice] = useState<number | "">("");
   const [editSalePrice, setEditSalePrice] = useState<number | "">("");
   const [editOffersReceived, setEditOffersReceived] = useState<number | "">("");
@@ -219,6 +223,7 @@ export default function ListingDetailPage() {
     setEditStatus(data.status ?? "prepping");
     setEditPendingDate(data.pending_date ?? "");
     setEditSoldDate(data.sold_date ?? "");
+    setEditCancelledDate(data.cancelled_date ?? "");
     setEditListPrice(data.list_price ?? "");
     setEditSalePrice(data.sale_price ?? "");
     setEditOffersReceived(data.offers_received ?? "");
@@ -459,6 +464,14 @@ export default function ListingDetailPage() {
       setEditError("Sold date is required when status is Sold.");
       return;
     }
+    if (editStatus === "cancelled" && !editCancelledDate) {
+      setEditError("Cancel date is required when status is Cancelled.");
+      return;
+    }
+    if (listing?.status === "cancelled" && editStatus === "active" && editListDate === (listing.list_date ?? "")) {
+      setEditError("To relist, change List Date to the relist date.");
+      return;
+    }
 
     if (savingEdit) return;
     setSavingEdit(true);
@@ -494,6 +507,7 @@ export default function ListingDetailPage() {
         status: editStatus,
         pending_date: editPendingDate || null,
         sold_date: editSoldDate || null,
+        ...(editStatus === "cancelled" ? { cancelled_date: editCancelledDate } : {}),
         zillow_visible: editZillow,
         redfin_visible: editRedfin,
         compass_visible: editCompass,
@@ -1388,6 +1402,32 @@ export default function ListingDetailPage() {
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
                   />
                 </div>
+              )}
+
+              {/* Cancel Date */}
+              {editStatus === "cancelled" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Cancel Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={editCancelledDate}
+                    onChange={(e) => setEditCancelledDate(e.target.value)}
+                    required
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Days on market stop on this date. Weekly emails stop; the seller page stays up.
+                  </p>
+                </div>
+              )}
+
+              {/* Relist note */}
+              {listing?.status === "cancelled" && editStatus === "active" && (
+                <p className="text-xs text-gray-600 rounded-lg bg-gray-50 border border-gray-200 px-3 py-2">
+                  Relisting: set List Date to the relist date. The days from the cancelled period are added to prior days on market automatically, so CDOM stays right.
+                </p>
               )}
 
               {/* Sold Date */}

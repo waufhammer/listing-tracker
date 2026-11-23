@@ -52,6 +52,7 @@ const statusConfig: Record<string, { label: string; bg: string; text: string; bo
   active: { label: "Active", bg: "bg-green-50", text: "text-green-800", border: "border-green-200" },
   pending: { label: "Pending", bg: "bg-amber-50", text: "text-amber-800", border: "border-amber-200" },
   sold: { label: "Sold", bg: "bg-red-50", text: "text-red-800", border: "border-red-200" },
+  cancelled: { label: "Cancelled", bg: "bg-gray-50", text: "text-gray-700", border: "border-gray-200" },
 };
 
 const activityTypeConfig: Record<string, { label: string; color: string; dotColor: string }> = {

@@ -15,6 +15,8 @@ type Listing = {
   status: string;
   list_date: string | null;
   pending_date: string | null;
+  sold_date?: string | null;
+  cancelled_date?: string | null;
   first_look: boolean;
   prior_days_on_market?: number | null;
 };
@@ -25,6 +27,9 @@ const COLUMNS = [
   { key: "pending", label: "Pending", color: "border-amber-400", bg: "bg-amber-50", badge: "bg-amber-100 text-amber-800" },
   { key: "sold", label: "Sold", color: "border-red-400", bg: "bg-red-50", badge: "bg-red-100 text-red-800" },
 ];
+
+// Shown as a fifth column only while some listing is cancelled.
+const CANCELLED_COLUMN = { key: "cancelled", label: "Cancelled", color: "border-gray-400", bg: "bg-gray-50", badge: "bg-gray-200 text-gray-700" };
 
 export default function AdminListingsPage() {
   const router = useRouter();
@@ -61,6 +66,9 @@ export default function AdminListingsPage() {
     );
   }
 
+  const hasCancelled = listings.some((l) => l.status?.toLowerCase() === "cancelled");
+  const columns = hasCancelled ? [...COLUMNS, CANCELLED_COLUMN] : COLUMNS;
+
   return (
     <div>
       <ClientLinkRequests />
@@ -76,8 +84,8 @@ export default function AdminListingsPage() {
       </div>
 
       {/* Kanban board */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        {COLUMNS.map((col) => {
+      <div className={`grid grid-cols-1 sm:grid-cols-2 ${hasCancelled ? "lg:grid-cols-5" : "lg:grid-cols-4"} gap-5`}>
+        {columns.map((col) => {
           const colListings = listings.filter(
             (l) => l.status?.toLowerCase() === col.key
           );
