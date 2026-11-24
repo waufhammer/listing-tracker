@@ -9,16 +9,17 @@ import { NEXT_STEPS_PLACEHOLDER, mondayOnOrBefore, pacificToday, weekFor, CLIENT
 import { loadWeeklyEmail } from "@/lib/weekly-email-data";
 import { formatChangeLog } from "@/lib/change-log";
 import { futureDateError, stampActivityTimes } from "@/lib/activity-rules";
+import { LISTING_STATUS_VALUES, applyStatusRules } from "@/lib/listing-status";
 
 export const ACTIVITY_TYPES = ["buyer_showing", "agent_preview", "open_house"] as const;
-export const LISTING_STATUSES = ["prepping", "active", "pending", "sold"] as const;
+export const LISTING_STATUSES = LISTING_STATUS_VALUES;
 const LOGGED_BY = "claude";
 
 type Row = Record<string, unknown>;
 type Err = { error: string; candidates?: unknown[] };
 
 const LISTING_FIELDS =
-  "id, slug, client_name, property_address, status, list_date, pending_date, sold_date, first_look, prior_days_on_market, list_price, sale_price, offers_received, property_type";
+  "id, slug, client_name, property_address, status, list_date, pending_date, sold_date, cancelled_date, first_look, prior_days_on_market, list_price, sale_price, offers_received, property_type";
 
 function listingSummary(l: Row) {
   const listing = l as Parameters<typeof cumulativeDaysOnMarket>[0] & Row;
@@ -537,11 +538,13 @@ export async function updateListing(input: { listing_id: string; confirmed: bool
   if (updates.status === "sold" && !updates.sold_date && !r.listing.sold_date) {
     return { error: "A sold_date is required when status is sold." };
   }
-  const { data, error } = await supabaseAdmin.from("listings").update({ ...updates, ...byClaude() }).eq("id", r.listing.id as string).select(LISTING_FIELDS).single();
+  const checked = applyStatusRules(r.listing, updates);
+  if ("error" in checked) return checked;
+  const { data, error } = await supabaseAdmin.from("listings").update({ ...checked.updates, ...byClaude() }).eq("id", r.listing.id as string).select(LISTING_FIELDS).single();
   if (error) return { error: error.message };
   return {
     saved: listingSummary(data as Row),
-    saved_summary: summaryLine({ action: "Updated listing", address: String((data as Row).property_address), ...changedFields(r.listing, data as Row, Object.keys(updates)) }),
+    saved_summary: summaryLine({ action: "Updated listing", address: String((data as Row).property_address), ...changedFields(r.listing, data as Row, Object.keys(checked.updates)) }),
   };
 }
 

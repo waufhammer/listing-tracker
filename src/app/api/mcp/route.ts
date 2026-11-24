@@ -296,7 +296,7 @@ const handler = createMcpHandler(
       {
         title: "Edit listing",
         description:
-          "Edit listing fields. For a cancel and relist: list_date = relist date, prior_days_on_market = days from earlier listing periods (CDOM minus DOM). Show Will first; confirmed only after he approves.",
+          "Edit listing fields. To cancel: status = cancelled with cancelled_date (DOM stops that day; weekly emails stop; the seller page stays up). To relist a cancelled listing: status = active with list_date = relist date; the cancelled period is added to prior_days_on_market automatically, so CDOM stays right. Only set prior_days_on_market by hand to correct it. Show Will first; confirmed only after he approves.",
         inputSchema: z.object({
           listing_id: listingId,
           confirmed,
@@ -306,6 +306,7 @@ const handler = createMcpHandler(
           list_date: isoDate.nullable().optional().describe("null clears it"),
           pending_date: isoDate.nullable().optional().describe("null clears it"),
           sold_date: isoDate.nullable().optional().describe("null clears it"),
+          cancelled_date: isoDate.optional().describe("Required with status cancelled"),
           prior_days_on_market: z.number().int().min(0).optional(),
           list_price: z.number().positive().nullable().optional(),
           sale_price: z.number().positive().nullable().optional(),

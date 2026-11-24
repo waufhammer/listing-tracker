@@ -41,3 +41,7 @@ change in the dashboard.
   request/nudge/received timestamps, `follow_up_sent_at`, and
   `voided_at` / `void_reason`; plus the `login_attempts` table for the admin
   login rate limit. Run before deploying Phase 5.
+- `0010_cancelled_status.sql` — `listings.cancelled_date` and a status check
+  that allows `'cancelled'` (replaces any older status check). Days on market
+  stop on the cancel date; relisting adds the cancelled period to
+  `prior_days_on_market` in the app. Run before deploying the Cancelled status.
