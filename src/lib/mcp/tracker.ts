@@ -175,7 +175,7 @@ export async function getChangeLog(ref: string, limit = 50) {
   if (error) return { error: error.message };
   return {
     listing: { id: r.listing.id, property_address: r.listing.property_address },
-    note: "Every change to this listing, its activity, online views and sellers, newest first. actor: 'claude' = the connector, 'will' = admin. For updates, only changed fields are shown.",
+    note: "Every change to this listing, its activity, online views and sellers, newest first. actor: 'claude' = the connector, 'will' = Will in admin, 'assistant' = Will's assistant in admin (the Assistant profile). For updates, only changed fields are shown.",
     changes: formatChangeLog((data ?? []) as Row[]).filter((x) => !("changed" in x) || Object.keys(x.changed).length > 0),
   };
 }
@@ -252,27 +252,29 @@ export async function getWeeklyChecklist(send_date?: string) {
       supabaseAdmin.from("listing_sellers").select("first_name, email").eq("listing_id", l.id as string),
       supabaseAdmin
         .from("activity_entries")
-        .select("id, date, type, agent_name, agent_email, nudge_count, last_nudge_at, feedback_requested_at")
+        .select("id, date, type, agent_name, agent_email, nudge_count, last_nudge_at, feedback_requested_at, raw_feedback, display_feedback")
         .eq("listing_id", l.id as string)
         .is("voided_at", null)
         .in("type", ["buyer_showing", "agent_preview"])
-        .is("raw_feedback", null)
-        .is("display_feedback", null)
         .order("date", { ascending: false }),
     ]);
     const e = (entries.data ?? []) as Row[];
+    // Blank text counts as no feedback (some entries were saved with "").
+    const noFeedback = (x: Row) => !String(x.raw_feedback ?? "").trim() && !String(x.display_feedback ?? "").trim();
     const showings = e.filter((x) => x.type === "buyer_showing" || x.type === "agent_preview");
     const s = (sellers.data ?? []) as Row[];
     out.push({
       listing_id: l.id,
       property_address: l.property_address,
       showings_without_feedback: showings
-        .filter((x) => !x.raw_feedback && !x.display_feedback)
+        .filter(noFeedback)
         .map((x) => ({ id: x.id, date: x.date, type: x.type, agent_name: x.agent_name })),
       feedback_not_client_visible: showings
-        .filter((x) => (x.raw_feedback || x.display_feedback) && !(x.feedback_visible && x.display_feedback))
+        .filter((x) => !noFeedback(x) && !(x.feedback_visible && String(x.display_feedback ?? "").trim()))
         .map((x) => ({ id: x.id, date: x.date, agent_name: x.agent_name })),
-      open_feedback_gaps_all_time: gaps.data ?? [],
+      open_feedback_gaps_all_time: ((gaps.data ?? []) as Row[])
+        .filter(noFeedback)
+        .map(({ raw_feedback: _r, display_feedback: _d, ...x }) => (void _r, void _d, x)),
       open_houses_missing_group_count: e
         .filter((x) => x.type === "open_house" && x.open_house_groups == null)
         .map((x) => ({ id: x.id, date: x.date })),
