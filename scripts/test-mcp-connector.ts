@@ -123,8 +123,10 @@ const hasColumn = async (table: string, col: string) => !(await db.from(table).s
   ok(c.data.listing?.status === "sold", "exact address still reaches a sold listing");
   c = await call("get_listing", { listing: "Thorndyke" });
   ok(c.isError && /matches 2 listings/.test(c.data.error) && c.data.candidates?.length === 2, "address matching a sold and an active listing never guesses");
-  const thorndyke = active.find((l: { property_address: string }) => /^1537 Thorndyke/.test(l.property_address));
-  ok(!!thorndyke?.id, "active 1537 Thorndyke found by list_listings");
+  // 1537 Thorndyke has fixed test history; find it whatever its status (it may be cancelled or sold now).
+  const everyListing = (await call("list_listings", {})).data.listings ?? [];
+  const thorndyke = everyListing.find((l: { property_address: string }) => /^1537 Thorndyke/.test(l.property_address));
+  ok(!!thorndyke?.id, "1537 Thorndyke found by list_listings");
   c = await call("get_activity", { listing: thorndyke.id, from: "2026-10-26", to: "2026-11-01" });
   if (!schema0009) skip("get_activity", "needs 0009"); else ok(Array.isArray(c.data.entries) && c.data.entries.length > 0, `get_activity by id (${c.data.entries?.length} entries)`);
   c = await call("get_weekly_checklist", { send_date: "2026-11-02" });
@@ -267,6 +269,8 @@ const hasColumn = async (table: string, col: string) => !(await db.from(table).s
   const pv = (listing_id: string, ua: string) => fetch(`${B}/api/page-views`, { method: "POST", headers: { "content-type": "application/json", "user-agent": ua }, body: JSON.stringify({ listing_id }) });
   r = await pv(thorndyke.id, "Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)");
   ok((await r.json()).excluded === true, "link-preview bot view not logged");
+  r = await pv(thorndyke.id, "curl/8.7.1");
+  ok((await r.json()).excluded === true, "command-line (curl) view not logged");
   r = await pv("00000000-0000-4000-8000-000000000000", "Mozilla/5.0 (Macintosh) Safari/605.1.15");
   ok(r.status === 404, "view for unknown listing rejected");
   r = await pv("not-a-uuid", "Mozilla/5.0 (Macintosh) Safari/605.1.15");
