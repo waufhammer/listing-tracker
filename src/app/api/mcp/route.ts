@@ -147,7 +147,7 @@ const handler = createMcpHandler(
       {
         title: "Get change history",
         description:
-          "Every change to a listing, its activity entries, online views and sellers, newest first: when, who (claude or will), what, and the before/after values of changed fields.",
+          "Every change to a listing, its activity entries, online views and sellers, newest first: when, who (claude = the connector, will = Will in admin, assistant = Will's assistant in admin), what, and the before/after values of changed fields.",
         inputSchema: z.object({ listing: listingRef, limit: z.number().int().min(1).max(500).default(50) }),
         annotations: readOnly,
       },
